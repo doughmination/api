@@ -55,6 +55,13 @@ export default {
       return gatewayStub(env).fetch(new Request("https://do/ws", req));
     }
 
+    // ---- Gateway status (debug) ----
+    if (path === "/status") {
+      const res = await gatewayStub(env).fetch("https://do/status");
+      const body = await res.json();
+      return json({ success: true, data: body as any });
+    }
+
     if (path === "/") {
       return json({
         success: true,

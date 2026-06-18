@@ -36,6 +36,8 @@ export class GatewayManager implements DurableObject {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatAcked = true;
   private reconnectAttempts = 0;
+  private lastCloseCode: number | null = null;
+  private connectedSince: number | null = null;
 
   private presences = new Map<string, UnifiedPresence>();
   private clients = new Map<WebSocket, ClientSub>();
@@ -60,6 +62,16 @@ export class GatewayManager implements DurableObject {
 
     if (url.pathname === "/connect") {
       return Response.json({ connected: !!this.discord, tracked: this.presences.size });
+    }
+    if (url.pathname === "/status") {
+      return Response.json({
+        connected: !!this.discord,
+        tracked: this.presences.size,
+        connected_since: this.connectedSince,
+        last_close_code: this.lastCloseCode,
+        reconnect_attempts: this.reconnectAttempts,
+        has_session: !!this.sessionId,
+      });
     }
     if (url.pathname === "/presences") {
       return Response.json(Object.fromEntries(this.presences));
@@ -151,6 +163,8 @@ export class GatewayManager implements DurableObject {
         this.sessionId = d.session_id ?? null;
         this.resumeUrl = d.resume_gateway_url ?? null;
         this.reconnectAttempts = 0;
+        this.lastCloseCode = null;
+        this.connectedSince = Date.now();
         break;
       case "RESUMED":
         this.reconnectAttempts = 0;
@@ -237,6 +251,8 @@ export class GatewayManager implements DurableObject {
       this.heartbeatTimer = null;
     }
     this.discord = null;
+    this.lastCloseCode = code;
+    this.connectedSince = null;
     // 4004/4010/4011/4013/4014 = fatal (bad token/intents) — don't hammer.
     const fatal = [4004, 4010, 4011, 4012, 4013, 4014].includes(code);
     if (fatal) {
