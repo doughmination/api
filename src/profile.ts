@@ -99,6 +99,12 @@ function cacheKey(id: string): string {
   return `profile:${id}`;
 }
 
+/** Base profile freshness window (seconds). Profiles change rarely, so this is
+ *  long by default; override via PROFILE_CACHE_TTL_SECONDS. */
+function baseTtl(env: Env): number {
+  return Math.max(60, Number(env.PROFILE_CACHE_TTL_SECONDS || "1800"));
+}
+
 type CachedProfile = Omit<ProfileResult, "source">;
 
 /**
@@ -119,11 +125,14 @@ export async function getProfile(
   id: string,
   ctx?: ExecutionContext
 ): Promise<ProfileResult | null> {
-  const ttl = Math.max(60, Number(env.PROFILE_CACHE_TTL_SECONDS || "300"));
   const got = await env.PROFILE_CACHE.getWithMetadata(cacheKey(id), "json");
   const cached = (got.value as CachedProfile | null) ?? null;
-  const lastWrite = (got.metadata as { t?: number } | null)?.t ?? 0;
-  const cacheFresh = !!cached && Date.now() - lastWrite < ttl * 1000;
+  const meta = got.metadata as { t?: number; ttl?: number } | null;
+  const lastWrite = meta?.t ?? 0;
+  // Per-entry TTL is jittered at write time so a big batch of profiles doesn't
+  // all go stale on the same tick and stampede the rich refresh.
+  const entryTtlMs = (meta?.ttl ?? baseTtl(env)) * 1000;
+  const cacheFresh = !!cached && Date.now() - lastWrite < entryTtlMs;
 
   // 1) Fresh rich cache -> serve it without touching Discord at all.
   if (cached && cacheFresh) return { ...cached, source: "cache" };
@@ -186,6 +195,8 @@ function mergeRichOverBot(cached: CachedProfile, bot: ProfileResult): CachedProf
 
 /** Persist a rich profile so it can drive cache-hits and bot-merge fallbacks. */
 async function writeCache(env: Env, id: string, result: ProfileResult): Promise<void> {
+  // Jitter the freshness window ±20% so entries refresh staggered, not in a burst.
+  const jitteredTtl = Math.round(baseTtl(env) * (0.8 + Math.random() * 0.4));
   await env.PROFILE_CACHE.put(
     cacheKey(id),
     JSON.stringify({
@@ -193,7 +204,9 @@ async function writeCache(env: Env, id: string, result: ProfileResult): Promise<
       badges: result.badges,
       connected_accounts: result.connected_accounts,
     }),
-    { expirationTtl: 86400, metadata: { t: Date.now() } }
+    // Keep the rich blob ~24h so it's available to merge over bot data even
+    // when it's well past its freshness window.
+    { expirationTtl: 86400, metadata: { t: Date.now(), ttl: jitteredTtl } }
   );
 }
 

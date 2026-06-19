@@ -48,6 +48,9 @@
 		// Comma-separated guild IDs the bot is in that you want monitored.
 		// Leave empty to monitor every guild the bot can see.
 		"TRACKED_GUILD_IDS": "",
-		"PROFILE_CACHE_TTL_SECONDS": "300"
+		// Profile freshness window (seconds). Profiles change rarely and the
+		// user-token /profile route is heavily rate-limited, so keep this long.
+		// Presence stays live via the gateway regardless of this value.
+		"PROFILE_CACHE_TTL_SECONDS": "1800"
 	}
 }
