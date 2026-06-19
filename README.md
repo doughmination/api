@@ -34,7 +34,7 @@ pnpx wrangler secret put DISCORD_USER_TOKEN
 pnpx wrangler secret put DISCORD_USER_TOKEN2
 
 # If you need to update the X-Super-Properties to latest version
-pnpm decode "X-Super-Properties: [BASE64 HERE]"pnpm
+pnpm decode "X-Super-Properties: [BASE64 HERE]"
 
 # Local test
 pnpm dev
