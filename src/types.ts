@@ -13,6 +13,9 @@ export interface Env {
   DISCORD_BOT_TOKEN: string;
   /** Optional self-bot token for rich profile data. Off by default. */
   DISCORD_USER_TOKEN?: string;
+  /** Optional second self-bot token; rich fetches spread across both and fail
+   *  over on a 429, doubling the /profile rate-limit headroom. */
+  DISCORD_USER_TOKEN2?: string;
 
   DISCORD_API_VERSION?: string;
   TRACKED_GUILD_IDS?: string;

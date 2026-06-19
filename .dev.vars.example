@@ -10,3 +10,8 @@ DISCORD_BOT_TOKEN=
 # WARNING: using a user token is self-botting and against Discord's ToS;
 # it can get the account banned. Leave blank to run bot-token-only.
 DISCORD_USER_TOKEN=
+
+# OPTIONAL second user token. If set, rich profile fetches spread across both
+# tokens and fail over on a 429, doubling the /profile rate-limit headroom.
+# Same ToS warning applies — more accounts means more accounts at risk.
+DISCORD_USER_TOKEN2=

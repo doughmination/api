@@ -78,26 +78,47 @@ export interface UserProfileFetch {
   retryAfter: number;
 }
 
+/** Configured user tokens (1 or 2), in order, skipping blanks. */
+function userTokens(env: Env): string[] {
+  return [env.DISCORD_USER_TOKEN, env.DISCORD_USER_TOKEN2].filter(
+    (t): t is string => !!t && t.trim().length > 0
+  );
+}
+
 /**
- * Rich profile via USER token (self-bot — ToS risk). Reports the HTTP status so
- * callers can tell a 429 rate-limit (back off) apart from a 401/403 token issue,
- * rather than silently degrading to the bot token.
+ * Rich profile via USER token(s) (self-bot — ToS risk). If two tokens are
+ * configured, load is spread across them (random start) and a 429 on one fails
+ * over to the other — doubling the /profile rate-limit headroom. Reports the
+ * HTTP status so callers can tell a 429 (back off) from a 401/403 token issue.
  */
 export async function fetchUserProfile(env: Env, id: string): Promise<UserProfileFetch> {
-  if (!env.DISCORD_USER_TOKEN) return { data: null, status: 0, retryAfter: 0 };
+  const tokens = userTokens(env);
+  if (tokens.length === 0) return { data: null, status: 0, retryAfter: 0 };
+
   const url =
     `${apiBase(env)}/users/${id}/profile` +
     `?with_mutual_guilds=false&with_mutual_friends=false`;
-  const res = await fetch(url, {
-    headers: { Authorization: env.DISCORD_USER_TOKEN },
-  });
-  if (!res.ok) {
-    const retryAfter = Number(res.headers.get("retry-after")) || 0;
+
+  // Spread load: start on a random token, then rotate to the next on a 429.
+  const start = Math.floor(Math.random() * tokens.length);
+  let lastStatus = 0;
+  let lastRetryAfter = 0;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const idx = (start + i) % tokens.length;
+    const res = await fetch(url, { headers: { Authorization: tokens[idx] } });
+    if (res.ok) {
+      return { data: (await res.json()) as RawProfileResponse, status: 200, retryAfter: 0 };
+    }
+    lastStatus = res.status;
+    lastRetryAfter = Number(res.headers.get("retry-after")) || 0;
     console.warn(
-      `[dough-restful] user-token /users/${id}/profile -> HTTP ${res.status}` +
-        (retryAfter ? ` (retry ${retryAfter}s)` : "")
+      `[dough-restful] user-token #${idx + 1} /users/${id}/profile -> HTTP ${res.status}` +
+        (lastRetryAfter ? ` (retry ${lastRetryAfter}s)` : "")
     );
-    return { data: null, status: res.status, retryAfter };
+    // Only a rate-limit is worth retrying on another token; 401/403/404 would
+    // behave the same (or signal a token problem we'd rather surface).
+    if (res.status !== 429) break;
   }
-  return { data: (await res.json()) as RawProfileResponse, status: 200, retryAfter: 0 };
+  return { data: null, status: lastStatus, retryAfter: lastRetryAfter };
 }
