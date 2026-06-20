@@ -59,6 +59,14 @@ export interface UnifiedConnectedAccount {
   verified: boolean;
 }
 
+/** A decoded public user flag (whether or not it has badge art). */
+export interface UnifiedFlag {
+  /** e.g. "active_developer", "verified_bot", or "unknown_<bit>" if new. */
+  id: string;
+  /** Human-readable name, e.g. "Active Developer". */
+  name: string;
+}
+
 /** Human-readable collectible kind, mapped from Discord's numeric product type. */
 export type WishlistItemType =
   | "avatar_decoration"
@@ -94,9 +102,13 @@ export interface UnifiedWishlistItem {
   video_url: string | null;
   /** Accessibility label / alt text from Discord. */
   label: string | null;
+  /** Whether the wishlist owner already owns this item. */
+  is_owned: boolean | null;
+  /** Price in minor units (amount=599, exponent=2, currency="gbp" => £5.99). */
+  price: { amount: number; currency: string; exponent: number } | null;
   /** Wishlist visibility from the profile (1 = everyone; null if unknown). */
   visibility: number | null;
-  /** ISO timestamp the item was added/updated on the wishlist; null if unknown. */
+  /** ISO timestamp the wishlist was last updated; null if unknown. */
   updated_at: string | null;
 }
 
@@ -111,6 +123,11 @@ export interface UnifiedUser {
   banner: string | null;
   banner_url: string | null;
   accent_color: number | null;
+
+  /** Raw `public_flags` bitfield. */
+  public_flags: number;
+  /** Decoded public flags (badge and non-badge), incl. any new/unknown ones. */
+  flags: UnifiedFlag[];
 
   avatar_decoration: UnifiedAvatarDecoration | null;
   clan: UnifiedClanTag | null;

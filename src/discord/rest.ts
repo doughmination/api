@@ -134,9 +134,8 @@ export interface RawProfileResponse {
   premium_type?: number;
   premium_since?: string | null;
   premium_guild_since?: string | null;
-  /** Profile wishlist: map of collectible SKU id -> per-user settings. The
-   *  product details (name/images) are NOT here — resolve each SKU separately
-   *  via fetchCollectibleProduct. */
+  /** Profile wishlist: map of WISHLIST id -> per-wishlist settings. The items
+   *  themselves are NOT here — fetch them with fetchWishlist(wishlistId). */
   wishlist_settings?: Record<string, { visibility?: number; updated_at?: string }>;
 }
 
@@ -202,42 +201,59 @@ export async function fetchUserProfile(env: Env, id: string): Promise<UserProfil
   return { data: null, status: lastStatus, retryAfter: lastRetryAfter };
 }
 
-// ---- collectible products (resolve wishlist SKUs -> name + images) ------
+// ---- wishlist (the profile's wishlist_settings key is a WISHLIST id) -----
 
-export interface CollectibleFetch {
-  /** Raw collectible product JSON; null on failure. */
-  raw: unknown | null;
+export interface WishlistFetch {
+  /** Raw wishlist JSON ({ id, user_id, wishlist_items: [...] }); null on fail. */
+  raw: any | null;
   /** HTTP status (0 = not attempted / no token). */
   status: number;
 }
 
-/**
- * Resolve one collectible SKU to its product (name, type, item image assets).
- * The Shop product endpoint is read with the user token + client fingerprint
- * (same path as the rich profile); if no user token is configured we fall back
- * to the bot token, which is enough for many Shop reads. Product metadata is
- * effectively static, so callers cache the result per SKU.
- */
-export async function fetchCollectibleProduct(env: Env, skuId: string): Promise<CollectibleFetch> {
-  // country_code is hardcoded to GB — product name/images don't vary by region,
-  // it's only here because the Shop endpoint expects the param.
-  const params = new URLSearchParams({ include_bundles: "true", country_code: "GB" });
-  const url = `${apiBase(env)}/collectibles-products/${skuId}?${params.toString()}`;
-
-  // Prefer user token(s) with the client fingerprint; fail over on a 429.
-  const tokens = userTokens(env);
-  const start = tokens.length ? Math.floor(Math.random() * tokens.length) : 0;
-  let lastStatus = 0;
-  for (let i = 0; i < tokens.length; i++) {
-    const idx = (start + i) % tokens.length;
-    const res = await fetch(url, { headers: clientHeaders(env, tokens[idx]) });
-    if (res.ok) return { raw: await res.json().catch(() => null), status: 200 };
-    lastStatus = res.status;
-    if (res.status !== 429) break;
+/** One GET attempt; reads body as text so failures show in `wrangler tail`. */
+async function tryJson(url: string, headers: Record<string, string>, label: string): Promise<WishlistFetch> {
+  const res = await fetch(url, { headers });
+  const text = await res.text().catch(() => "");
+  if (res.ok) {
+    try {
+      return { raw: JSON.parse(text), status: 200 };
+    } catch {
+      console.warn(`[dough-restful] ${label} 200 non-JSON: ${text.slice(0, 100)}`);
+      return { raw: null, status: 200 };
+    }
   }
+  console.warn(`[dough-restful] ${label} HTTP ${res.status}: ${text.slice(0, 140)}`);
+  return { raw: null, status: res.status };
+}
 
-  // Bot-token fallback (works without a user token in many cases).
-  const res = await fetch(url, { headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}` } });
-  if (res.ok) return { raw: await res.json().catch(() => null), status: 200 };
-  return { raw: null, status: lastStatus || res.status };
+/**
+ * Fetch a user's wishlist by its id (the key inside the profile's
+ * `wishlist_settings`). GET /wishlists/{id} returns every item already
+ * resolved (names + collectible image data), so no per-item lookups are
+ * needed. User token + client fingerprint first, bot token as a fallback;
+ * configured API version then v10.
+ */
+export async function fetchWishlist(env: Env, wishlistId: string): Promise<WishlistFetch> {
+  const configured = env.DISCORD_API_VERSION || "10";
+  const versions = configured === "10" ? ["10"] : [configured, "10"];
+  const tokens = userTokens(env);
+  let lastStatus = 0;
+
+  for (const ver of versions) {
+    const url = `https://discord.com/api/v${ver}/wishlists/${wishlistId}`;
+    for (let i = 0; i < tokens.length; i++) {
+      const r = await tryJson(url, clientHeaders(env, tokens[i]), `wishlist ${wishlistId} v${ver} user#${i + 1}`);
+      if (r.raw) return r;
+      lastStatus = r.status;
+      if (r.status !== 429 && r.status !== 404) break;
+    }
+    const rb = await tryJson(
+      url,
+      { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}` },
+      `wishlist ${wishlistId} v${ver} bot`
+    );
+    if (rb.raw) return rb;
+    lastStatus = rb.status || lastStatus;
+  }
+  return { raw: null, status: lastStatus };
 }

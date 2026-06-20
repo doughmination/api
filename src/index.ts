@@ -68,6 +68,7 @@ export default {
         data: {
           service: "dough-restful",
           description: "Combined Discord presence + profile/badges API.",
+          repository_url: "https://git.gay/doughmination/dough-restful",
           endpoints: ["/v1/users/:id", "/v1/users/:id/presence", "/v1/users/:id/profile", "/socket"],
         } as any,
       });
@@ -82,6 +83,13 @@ export default {
         return json({ success: false, error: { code: "invalid_id", message: "Not a Discord snowflake." } }, 400);
       }
 
+      // Debug/ops escape hatch: ?fresh=1 (or nocache / refresh) bypasses the
+      // profile + per-SKU caches and forces a live re-fetch + re-resolve.
+      const force =
+        url.searchParams.has("fresh") ||
+        url.searchParams.has("nocache") ||
+        url.searchParams.has("refresh");
+
       if (sub === "presence") {
         const presence = await fetchPresence(env, id);
         if (!presence) {
@@ -91,7 +99,7 @@ export default {
       }
 
       if (sub === "profile") {
-        const profile = await getProfile(env, id, ctx);
+        const profile = await getProfile(env, id, ctx, force);
         if (!profile) {
           return json({ success: false, error: { code: "not_found", message: "User not found." } }, 404);
         }
@@ -99,7 +107,7 @@ export default {
       }
 
       // Unified record: profile (REST) + presence (gateway), in parallel.
-      const [profile, presence] = await Promise.all([getProfile(env, id, ctx), fetchPresence(env, id)]);
+      const [profile, presence] = await Promise.all([getProfile(env, id, ctx, force), fetchPresence(env, id)]);
       if (!profile) {
         return json({ success: false, error: { code: "not_found", message: "User not found." } }, 404);
       }

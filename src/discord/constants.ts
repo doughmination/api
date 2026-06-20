@@ -24,8 +24,15 @@ export const Op = {
  */
 export const INTENTS = (1 << 0) | (1 << 1) | (1 << 8); // 259
 
-/** Classic public-flag badges: [bit, id, description, badge-icons hash]. */
-export const FLAG_BADGES: ReadonlyArray<[number, string, string, string]> = [
+/**
+ * Public user flags (the `public_flags` bitfield). Single source of truth:
+ * [bit, id, description, badge-icons hash | null]. Entries with a hash render
+ * as a classic profile badge (see FLAG_BADGES); the rest are flags with no
+ * badge art (team user, verified bot, spammer, …) that we still surface.
+ * Bits/names from Discord's documented User Flags. 32-bit safe (all public
+ * flags are <= bit 23).
+ */
+export const PUBLIC_FLAGS: ReadonlyArray<[number, string, string, string | null]> = [
   [1 << 0, "staff", "Discord Staff", "5e74e9b61934fc1f67c65515d1f7e60d"],
   [1 << 1, "partner", "Partnered Server Owner", "3f9748e53446a137a052f3454e2de41e"],
   [1 << 2, "hypesquad", "HypeSquad Events", "bf01d1073931f921909045f3a39fd264"],
@@ -34,11 +41,45 @@ export const FLAG_BADGES: ReadonlyArray<[number, string, string, string]> = [
   [1 << 7, "hypesquad_house_2", "HypeSquad Brilliance", "011940fd013da3f7fb926e4a1cd2e618"],
   [1 << 8, "hypesquad_house_3", "HypeSquad Balance", "3aa41de486fa12454c3761e8e223442e"],
   [1 << 9, "premium_early_supporter", "Early Supporter", "7060786766c9c840eb3019e725d2b358"],
+  [1 << 10, "team_pseudo_user", "Team User", null],
+  [1 << 12, "system", "System", null],
   [1 << 14, "bug_hunter_level_2", "Bug Hunter Gold", "848f79194d4be5ff5f81505cbd0ce1e6"],
+  [1 << 16, "verified_bot", "Verified Bot", null],
   [1 << 17, "verified_developer", "Early Verified Bot Developer", "6df5892e0f35b051f8b61eace34f4967"],
   [1 << 18, "certified_moderator", "Moderator Programs Alumni", "fee1624003e2fee35cb398e125dc479b"],
+  [1 << 19, "bot_http_interactions", "HTTP Interactions Bot", null],
+  [1 << 20, "spammer", "Likely Spammer", null],
   [1 << 22, "active_developer", "Active Developer", "6bdc42827a38498929a4920da12695d9"],
+  [1 << 23, "provisional_account", "Provisional Account", null],
 ];
+
+/** The subset of PUBLIC_FLAGS that have badge art: [bit, id, description, hash]. */
+export const FLAG_BADGES = PUBLIC_FLAGS.filter(
+  (f): f is [number, string, string, string] => f[3] !== null
+);
+
+/**
+ * Decode a `public_flags` bitfield into a named list. Known flags get their
+ * id + name; any *unknown* set bit (a flag Discord added that we haven't named
+ * yet) is surfaced as `unknown_<bit>` so new flags/badges show up immediately.
+ */
+export function decodeUserFlags(flags: number): Array<{ id: string; name: string }> {
+  flags = Number(flags) || 0;
+  const out: Array<{ id: string; name: string }> = [];
+  let known = 0;
+  for (const [bit, id, name] of PUBLIC_FLAGS) {
+    known |= bit;
+    if (flags & bit) out.push({ id, name });
+  }
+  // Forward-compat: report set bits we don't recognise (scan the 32-bit range).
+  for (let b = 0; b < 31; b++) {
+    const bit = 1 << b;
+    if ((flags & bit) && !(known & bit)) {
+      out.push({ id: `unknown_${b}`, name: `Unknown flag (bit ${b})` });
+    }
+  }
+  return out;
+}
 
 export function isAnimated(hash: string | null | undefined): boolean {
   return typeof hash === "string" && hash.startsWith("a_");

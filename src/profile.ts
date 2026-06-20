@@ -18,8 +18,10 @@ import {
   avatarUrl,
   badgeIconUrl,
   bannerUrl,
+  CDN,
   clanBadgeUrl,
   collectibleTypeName,
+  decodeUserFlags,
   decorationUrl,
   FLAG_BADGES,
   nameplateStaticUrl,
@@ -27,8 +29,8 @@ import {
 } from "./discord/constants";
 import {
   fetchBotUser,
-  fetchCollectibleProduct,
   fetchUserProfile,
+  fetchWishlist,
   type RawDiscordUser,
 } from "./discord/rest";
 
@@ -76,6 +78,7 @@ function buildUser(
       : null;
 
   const deco = u.avatar_decoration_data;
+  const publicFlags = u.public_flags ?? u.flags ?? 0;
 
   return {
     id: u.id,
@@ -87,6 +90,8 @@ function buildUser(
     banner: u.banner ?? null,
     banner_url: bannerUrl(u.id, u.banner ?? null),
     accent_color: u.accent_color ?? null,
+    public_flags: publicFlags,
+    flags: decodeUserFlags(publicFlags),
     avatar_decoration: deco
       ? { asset: deco.asset, sku_id: deco.sku_id ?? null, url: decorationUrl(deco.asset) }
       : null,
@@ -107,10 +112,10 @@ function buildUser(
   };
 }
 
-// ---- wishlist (Shop collectibles saved to the profile) ------------------
-// The profile carries `wishlist_settings` — a map of collectible SKU id ->
-// per-user settings (visibility, updated_at). It has no names or images, so we
-// resolve each SKU to its collectible product and pull the image assets out.
+// ---- wishlist (profile's wishlist_settings key is a WISHLIST id) ---------
+// `wishlist_settings` maps WISHLIST id -> per-wishlist settings (visibility,
+// updated_at). The items live at GET /wishlists/{id}, already resolved with
+// names + collectible image data, so we just fetch and flatten them.
 
 /** Resolve static/animated/video image URLs for one collectible item. */
 function itemImages(it: any): Pick<
@@ -139,99 +144,154 @@ function itemImages(it: any): Pick<
   return { static_image_url: stat, animated_image_url: anim, video_url: vid };
 }
 
-/** Core (SKU-keyed, user-independent) fields of a resolved collectible. */
+/** Core (item) fields, before per-wishlist visibility/updated_at are layered on. */
 type WishlistCore = Omit<UnifiedWishlistItem, "visibility" | "updated_at">;
 
-/** Turn a resolved collectible product into its user-independent core. */
-function productToCore(product: any, sku: string): WishlistCore {
-  // A product wraps items[]; use the first item for imagery/labels.
-  const item =
-    Array.isArray(product?.items) && product.items.length ? product.items[0] : product;
-  const typeId = product?.type ?? item?.type ?? null;
+/** Price from a SKU's price blob (minor units; amount 599 + exponent 2 => 5.99). */
+function parsePrice(price: any): UnifiedWishlistItem["price"] {
+  if (!price || typeof price.amount !== "number") return null;
   return {
-    sku_id: sku,
-    type: collectibleTypeName(typeof typeId === "number" ? typeId : null),
-    type_id: typeof typeId === "number" ? typeId : null,
-    name: product?.name ?? item?.title ?? item?.name ?? null,
-    summary: product?.summary ?? product?.description ?? item?.description ?? null,
-    ...itemImages(item),
-    label: item?.label ?? item?.accessibilityLabel ?? null,
+    amount: price.amount,
+    currency: typeof price.currency === "string" ? price.currency : "usd",
+    exponent: typeof price.currency_exponent === "number" ? price.currency_exponent : 2,
   };
 }
 
-/** KV key for a resolved collectible product (shared across users). */
-function collectibleKey(sku: string): string {
-  return `collectible:${sku}`;
+/**
+ * Map one `wishlist_items[]` entry (from GET /wishlists/{id}) to its core
+ * fields. Collectibles carry rich image data under `collectibles_item`
+ * (handled by itemImages); other SKUs (games, etc.) fall back to the SKU's
+ * store thumbnail.
+ */
+function wishlistItemToCore(it: any): WishlistCore {
+  const sku = (it && it.sku) || {};
+  const ci = it?.collectibles_item ?? sku?.tenant_metadata?.collectibles?.item ?? null;
+  const typeId = typeof ci?.type === "number" ? ci.type : null;
+  // bundle_items[] entries are collectible items directly ({ type, asset, … }).
+  const bundleItems: any[] = Array.isArray(it?.bundle_items) ? it.bundle_items : [];
+  const isBundle = !ci && bundleItems.length > 0;
+
+  let images: Pick<UnifiedWishlistItem, "static_image_url" | "animated_image_url" | "video_url">;
+  if (ci) {
+    images = itemImages(ci);
+  } else if (isBundle) {
+    // A bundle has its own shop preview (fg over bg); fall back to the first
+    // bundled item's art if the preview is missing.
+    const preview = sku.preview_asset_paths || {};
+    const previewImg: string | null = preview.fg_static || preview.bg_static || null;
+    images = previewImg
+      ? { static_image_url: previewImg, animated_image_url: null, video_url: null }
+      : itemImages(bundleItems[0]);
+  } else {
+    const appId = sku.application_id;
+    const thumb = sku.thumbnail_asset_id;
+    images = {
+      static_image_url: appId && thumb ? `${CDN}/app-assets/${appId}/store/${thumb}.png` : null,
+      animated_image_url: null,
+      video_url: null,
+    };
+  }
+
+  // Discord ships bundle summaries as a "{joinedItems}" template — rebuild it
+  // from the bundled SKU names (bundle_items omit names for some item types).
+  let summary: string | null = sku.description ?? ci?.description ?? null;
+  if (summary && /\{[^}]*\}/.test(summary)) {
+    const bundled = Array.isArray(sku.bundled_skus) ? sku.bundled_skus : [];
+    let names: string[] = bundled
+      .map((s: any) => s?.name)
+      .filter((n: any): n is string => typeof n === "string" && n.length > 0);
+    if (!names.length) {
+      names = bundleItems
+        .map((b) => b?.title ?? b?.sku_name ?? b?.name)
+        .filter((n: any): n is string => typeof n === "string" && n.length > 0);
+    }
+    summary = names.length ? names.join(", ") : null;
+  }
+
+  return {
+    sku_id: String(it?.sku_id ?? sku.id ?? ""),
+    type: ci ? collectibleTypeName(typeId) : isBundle ? "bundle" : "external_sku",
+    type_id: ci ? typeId : isBundle ? 1000 : null,
+    name: it?.sku_name ?? ci?.title ?? sku.name ?? null,
+    summary,
+    ...images,
+    label: ci?.label ?? ci?.accessibilityLabel ?? null,
+    is_owned: typeof it?.is_owned === "boolean" ? it.is_owned : null,
+    price: parsePrice(sku.price),
+  };
 }
 
-/** Resolve a SKU to its core fields, cache-first (product metadata is static). */
-async function resolveCollectible(
+/** KV key for a fetched + parsed wishlist (shared across viewers). */
+function wishlistKey(wishlistId: string): string {
+  return `wishlist:${wishlistId}`;
+}
+
+/** Fetch + parse a wishlist by id, cache-first (~1h). */
+async function getWishlistItems(
   env: Env,
-  sku: string,
-  ctx?: ExecutionContext
-): Promise<WishlistCore | null> {
-  const cached = (await env.PROFILE_CACHE.get(collectibleKey(sku), "json")) as WishlistCore | null;
-  if (cached) return cached;
-  const { raw } = await fetchCollectibleProduct(env, sku);
-  if (!raw) return null;
-  const core = productToCore(raw, sku);
-  const write = env.PROFILE_CACHE.put(collectibleKey(sku), JSON.stringify(core), {
-    expirationTtl: 604800, // 7d — product metadata barely changes
+  wishlistId: string,
+  ctx?: ExecutionContext,
+  force = false
+): Promise<{ ok: boolean; items: WishlistCore[] }> {
+  if (!force) {
+    const cached = (await env.PROFILE_CACHE.get(wishlistKey(wishlistId), "json")) as
+      | WishlistCore[]
+      | null;
+    if (cached) return { ok: true, items: cached };
+  }
+  const { raw } = await fetchWishlist(env, wishlistId);
+  if (!raw) return { ok: false, items: [] };
+  const arr = Array.isArray(raw.wishlist_items) ? raw.wishlist_items : [];
+  const items = arr
+    .slice(0, WISHLIST_MAX)
+    .map(wishlistItemToCore)
+    .filter((x: WishlistCore) => x.sku_id);
+  const write = env.PROFILE_CACHE.put(wishlistKey(wishlistId), JSON.stringify(items), {
+    expirationTtl: 3600, // 1h — wishlists change occasionally
   });
   if (ctx) ctx.waitUntil(write);
   else await write;
-  return core;
+  return { ok: true, items };
 }
 
-/** Hard cap so a huge wishlist can't fan out into unbounded SKU resolves. */
+/** Hard cap so an enormous wishlist can't blow up the response. */
 const WISHLIST_MAX = 100;
 
 /**
- * Build the wishlist from a rich profile payload: read `wishlist_settings`,
- * then resolve every SKU (cache-first, in parallel) to name + images. Returns
- * null when the profile has no wishlist field at all (i.e. "unavailable"), and
- * [] when the wishlist is present but empty. Unresolved SKUs are still included
- * (null name/images) so an item is never silently dropped.
+ * Build the wishlist from a rich profile payload. `wishlist_settings` is keyed
+ * by wishlist id (usually one); for each we fetch GET /wishlists/{id} and
+ * flatten its already-resolved items, layering on that wishlist's
+ * visibility/updated_at. Returns null when the profile has no wishlist field,
+ * or when every wishlist fetch failed (so the cache-merge keeps a prior good
+ * list); [] for a reachable-but-empty wishlist.
  */
 async function buildWishlist(
   env: Env,
   profile: {
     wishlist_settings?: Record<string, { visibility?: number; updated_at?: string }>;
   },
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
+  force = false
 ): Promise<UnifiedWishlistItem[] | null> {
   const settings = profile.wishlist_settings;
   if (!settings || typeof settings !== "object") return null;
 
-  const entries = Object.entries(settings)
-    .filter(([sku]) => /^\d{16,21}$/.test(sku))
-    .map(([sku, s]) => ({
-      sku,
-      visibility: typeof s?.visibility === "number" ? s.visibility : null,
-      updated_at: typeof s?.updated_at === "string" ? s.updated_at : null,
-    }));
-  if (!entries.length) return [];
+  const ids = Object.keys(settings).filter((k) => /^\d{16,21}$/.test(k));
+  if (!ids.length) return [];
 
-  // Newest first (stable, and matches how a wishlist tends to read).
-  entries.sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
-
-  return Promise.all(
-    entries.slice(0, WISHLIST_MAX).map(async ({ sku, visibility, updated_at }) => {
-      const core =
-        (await resolveCollectible(env, sku, ctx)) ?? {
-          sku_id: sku,
-          type: "unknown" as const,
-          type_id: null,
-          name: null,
-          summary: null,
-          static_image_url: null,
-          animated_image_url: null,
-          video_url: null,
-          label: null,
-        };
-      return { ...core, visibility, updated_at };
-    })
-  );
+  let anyOk = false;
+  const out: UnifiedWishlistItem[] = [];
+  for (const wid of ids) {
+    const s = settings[wid] || {};
+    const visibility = typeof s.visibility === "number" ? s.visibility : null;
+    const updated_at = typeof s.updated_at === "string" ? s.updated_at : null;
+    const { ok, items } = await getWishlistItems(env, wid, ctx, force);
+    if (!ok) continue;
+    anyOk = true;
+    for (const core of items) out.push({ ...core, visibility, updated_at });
+  }
+  if (!anyOk) return null;
+  return out;
 }
 
 function cacheKey(id: string): string {
@@ -262,7 +322,8 @@ type CachedProfile = Omit<ProfileResult, "source">;
 export async function getProfile(
   env: Env,
   id: string,
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
+  force = false
 ): Promise<ProfileResult | null> {
   const got = await env.PROFILE_CACHE.getWithMetadata(cacheKey(id), "json");
   const cached = (got.value as CachedProfile | null) ?? null;
@@ -271,7 +332,8 @@ export async function getProfile(
   // Per-entry TTL is jittered at write time so a big batch of profiles doesn't
   // all go stale on the same tick and stampede the rich refresh.
   const entryTtlMs = (meta?.ttl ?? baseTtl(env)) * 1000;
-  const cacheFresh = !!cached && Date.now() - lastWrite < entryTtlMs;
+  // `force` (?fresh=1) treats the cache as stale so we re-fetch + re-resolve.
+  const cacheFresh = !force && !!cached && Date.now() - lastWrite < entryTtlMs;
 
   // 1) Fresh rich cache -> serve it without touching Discord at all.
   if (cached && cacheFresh) return { ...cached, source: "cache" };
@@ -282,7 +344,7 @@ export async function getProfile(
   const cdRaw = await env.PROFILE_CACHE.get(COOLDOWN_KEY);
   const tryRich = !(cdRaw && Date.now() < Number(cdRaw));
 
-  const { result: built, richStatus, retryAfter } = await buildFreshProfile(env, id, tryRich, ctx);
+  const { result: built, richStatus, retryAfter } = await buildFreshProfile(env, id, tryRich, ctx, force);
 
   if (richStatus === 429) {
     // back off all rich attempts for a while (honour Retry-After, clamp 30s–5m)
@@ -370,7 +432,8 @@ async function buildFreshProfile(
   env: Env,
   id: string,
   tryRich: boolean,
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
+  force = false
 ): Promise<BuildResult> {
   // Rich path first (unless we're cooling down from a 429); fall back to bot.
   const rich = tryRich
@@ -393,14 +456,16 @@ async function buildFreshProfile(
     const badges: UnifiedBadge[] = [];
     // Flag badges from the user object (so classic badges are always present).
     badges.push(...flagBadges(u.public_flags ?? u.flags ?? 0));
-    // Rich badges (Nitro/boost/quest/orb/gifting…) from the profile.
+    // Rich badges (Nitro/boost/quest/orb/gifting…) from the profile. Passed
+    // through generically so brand-new badges appear automatically — we don't
+    // gate on a known list. Guard the icon URL in case a new badge has none.
     for (const b of profile.badges ?? []) {
       if (badges.some((x) => x.id === b.id)) continue;
       badges.push({
         id: b.id,
         description: b.description,
-        icon: b.icon,
-        icon_url: badgeIconUrl(b.icon),
+        icon: b.icon ?? null,
+        icon_url: b.icon ? badgeIconUrl(b.icon) : null,
         link: b.link ?? null,
         source: "profile",
       });
@@ -415,7 +480,7 @@ async function buildFreshProfile(
 
     // Wishlist rides on the rich profile (`wishlist_settings`); resolve its
     // SKUs to names + images (cache-first). null if the field is absent.
-    const wishlist = await buildWishlist(env, profile, ctx);
+    const wishlist = await buildWishlist(env, profile, ctx, force);
 
     return {
       result: { user: buildUser(u, bio, pronouns, themeColors), badges, connected_accounts: connected, wishlist, source: "user" },
