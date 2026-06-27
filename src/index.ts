@@ -66,10 +66,17 @@ export default {
       return json({
         success: true,
         data: {
-          service: "dough-restful",
+          service: "Doughmination Restful",
           description: "Combined Discord presence + profile/badges API.",
-          repository_url: "https://git.gay/doughmination/dough-restful",
-          endpoints: ["/v1/users/:id", "/v1/users/:id/presence", "/v1/users/:id/profile", "/socket"],
+          licence: "ESAL-2.0",
+          repository_url: "https://git.gay/doughmination/restful",
+          main_endpoint: "/v1/users/:id",
+          websocket: "/socket",
+          healthcheck: "/status",
+          other_endpoints: ["/v1/users/:id/presence", "/v1/users/:id/profile"],
+        },
+        authors: {
+          doughmination: "https://git.gay/doughmination",
         } as any,
       });
     }
