@@ -26,7 +26,10 @@ export function systemToken(): string | undefined {
 
 export function pluralkitHeaders(): Record<string, string> {
   const token = systemToken();
-  return token ? { Authorization: token } : {};
+  return {
+    "User-Agent": "doughmination-restful/2.0 (+https://doughmination.uk)",
+    ...(token ? { Authorization: token } : {}),
+  };
 }
 
 export function cacheTtl(): number {
