@@ -17,6 +17,7 @@ import type {
   ApiEnvelope,
   Env,
   UnifiedPresence,
+  UnifiedRecord,
   UnifiedGuildInvite,
   UnifiedGirlsRole,
   UnifiedGirlsMember,
@@ -26,6 +27,7 @@ import { GatewayManager } from "./gateway";
 import { getGuildInvite } from "./guild";
 import { getGirlsResource, isGirlsIdType } from "./girls";
 import { getContributions } from "./contribapi";
+import { DOCS_HTML } from "./docs";
 import { SystemState } from "./system/do";
 
 export { GatewayManager, SystemState };
@@ -66,6 +68,31 @@ async function fetchAllPresences(env: Env): Promise<Record<string, UnifiedPresen
   return (await res.json()) as Record<string, UnifiedPresence>;
 }
 
+/** Merge REST profile + gateway presence into the unified record shape the
+ *  website's presence cards consume (identical to the old /v1/users/:id). */
+function buildRecord(
+  profile: NonNullable<Awaited<ReturnType<typeof getProfile>>>,
+  presence: UnifiedPresence | null,
+): UnifiedRecord {
+  return {
+    user: profile.user,
+    presence,
+    badges: profile.badges,
+    clientBadges: profile.clientBadges,
+    connected_accounts: profile.connected_accounts,
+    wishlist: profile.wishlist ?? null,
+    mutual_guilds: profile.mutual_guilds ?? null,
+    mutual_friends: profile.mutual_friends ?? null,
+    mutual_friends_count: profile.mutual_friends_count ?? null,
+    guild_memberships: profile.guild_memberships ?? null,
+    pronoundb: profile.pronoundb ?? null,
+    timezone: profile.timezone ?? null,
+    reviews: profile.reviews ?? null,
+    updated_at: Date.now(),
+    source: { presence: presence ? "gateway" : "none", profile: profile.source },
+  };
+}
+
 const ID_RE = /^\d{16,21}$/;
 
 /** Paths owned by the SystemState Durable Object. */
@@ -102,6 +129,13 @@ export default {
 
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
+    // ---- API reference ---------------------------------------------------
+    if (path === "/docs") {
+      return new Response(DOCS_HTML, {
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=3600", ...CORS },
+      });
+    }
+
     // ---- Lanyard realtime socket ----------------------------------------
     if (path === "/v2/lanyard/ws") {
       return gatewayStub(env).fetch(new Request("https://do/ws", req));
@@ -123,6 +157,7 @@ export default {
           description: "Universal API: live Discord presence + profiles + plural system.",
           licence: "ESAL-2.0",
           repository_url: "https://github.com/doughmination/restful",
+          docs: "/docs",
           namespaces: {
             lanyard: [
               "/v2/lanyard/users/:id           (presence)",
@@ -131,8 +166,8 @@ export default {
               "/v2/lanyard/status              (gateway health)",
             ],
             discord: [
-              "/v2/discord/users/:id           (profile + badges)",
-              "/v2/discord/users?ids=a,b,c     (batch profiles, up to 100)",
+              "/v2/discord/users/:id           (profile + badges + live presence)",
+              "/v2/discord/users?ids=a,b,c     (batch, up to 100)",
               "/v2/discord/guilds/:invite",
               "/v2/discord/girls/:idType/:id   (idType: role | member)",
             ],
@@ -219,21 +254,26 @@ export default {
       return json<Record<string, UnifiedPresence | null>>({ success: true, data });
     }
 
-    // ---- /v2/discord/users  (batch profiles) -----------------------------
+    // ---- /v2/discord/users  (batch: merged profile + presence) -----------
+    // Full user record (profile + badges + live presence) in one round-trip:
+    // one DO call for all presences, profiles fetched in parallel (KV-cached).
     if (path === "/v2/discord/users") {
       const ids = parseIds(url);
       const bad = validateIds(ids);
       if (bad) return bad;
 
       const force = wantsForce(url);
-      const profiles = await Promise.all(
-        ids.map((id) => getProfile(env, id, ctx, force).catch(() => null)),
-      );
-      const data: Record<string, unknown> = {};
+      const [presences, profiles] = await Promise.all([
+        fetchAllPresences(env),
+        Promise.all(ids.map((id) => getProfile(env, id, ctx, force).catch(() => null))),
+      ]);
+
+      const data: Record<string, UnifiedRecord | null> = {};
       ids.forEach((id, i) => {
-        data[id] = profiles[i] ?? null;
+        const profile = profiles[i];
+        data[id] = profile ? buildRecord(profile, presences[id] ?? null) : null;
       });
-      return json<Record<string, unknown>>({ success: true, data });
+      return json<Record<string, UnifiedRecord | null>>({ success: true, data });
     }
 
     // ---- /v2/lanyard/users/:id  (presence) -------------------------------
@@ -256,18 +296,23 @@ export default {
       return json<UnifiedPresence>({ success: true, data: presence });
     }
 
-    // ---- /v2/discord/users/:id  (profile + badges) -----------------------
+    // ---- /v2/discord/users/:id  (merged profile + presence) --------------
+    // Profile (REST) + presence (gateway) in parallel — the full user record
+    // the website's presence cards render from.
     const dm = path.match(/^\/v2\/discord\/users\/(\d{1,32})$/);
     if (dm) {
       const id = dm[1];
       if (!ID_RE.test(id)) {
         return json({ success: false, error: { code: "invalid_id", message: "Not a Discord snowflake." } }, 400);
       }
-      const profile = await getProfile(env, id, ctx, wantsForce(url));
+      const [profile, presence] = await Promise.all([
+        getProfile(env, id, ctx, wantsForce(url)),
+        fetchPresence(env, id),
+      ]);
       if (!profile) {
         return json({ success: false, error: { code: "not_found", message: "User not found." } }, 404);
       }
-      return json({ success: true, data: profile as never });
+      return json<UnifiedRecord>({ success: true, data: buildRecord(profile, presence) });
     }
 
     return json({ success: false, error: { code: "not_found", message: "Unknown route." } }, 404);
