@@ -21,11 +21,14 @@ import type {
   UnifiedGuildInvite,
   UnifiedGirlsRole,
   UnifiedGirlsMember,
+  UnifiedMinecraftGeneral,
+  UnifiedMinecraftHypixel,
 } from "./types";
 import { getProfile } from "./profile";
 import { GatewayManager } from "./gateway";
 import { getGuildInvite } from "./guild";
 import { getGirlsResource, isGirlsIdType } from "./girls";
+import { getMinecraftGeneral, getMinecraftHypixel, isMinecraftUuid } from "./minecraft";
 import { getContributions } from "./contribapi";
 import { DOCS_HTML } from "./docs";
 import { SystemState } from "./system/do";
@@ -118,6 +121,16 @@ function wantsForce(url: URL): boolean {
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
+
+    // ---- Enforce HTTPS ---------------------------------------------------
+    // Anything arriving over plain http is 301-redirected to the https URL
+    // before any routing runs. Cloudflare terminates TLS, so the original
+    // client scheme is read from the URL, x-forwarded-proto, or cf-visitor.
+    if (isInsecure(req, url)) {
+      url.protocol = "https:";
+      return Response.redirect(url.toString(), 301);
+    }
+
     const path = url.pathname.replace(/\/+$/, "") || "/";
 
     // ---- SystemState DO (plural / battery / system-data) -----------------
@@ -220,6 +233,41 @@ export default {
       }
     }
 
+    // ---- /v2/minecraft/general/:uuid  (Mojang profile + skin) ------------
+    // Just Mojang identity + skin/cape, so callers that only want a skin
+    // don't trigger the Hypixel round-trips.
+    const mcg = path.match(/^\/v2\/minecraft\/general\/([0-9a-fA-F-]{32,36})$/);
+    if (mcg) {
+      const uuid = mcg[1];
+      if (!isMinecraftUuid(uuid)) {
+        return json(
+          { success: false, error: { code: "invalid_uuid", message: "Not a Minecraft UUID (32 hex chars, dashes optional)." } },
+          400,
+        );
+      }
+      const data = await getMinecraftGeneral(env, uuid, ctx, wantsForce(url));
+      if (!data) {
+        return json({ success: false, error: { code: "not_found", message: "No Minecraft account with that UUID." } }, 404);
+      }
+      return json<UnifiedMinecraftGeneral>({ success: true, data });
+    }
+
+    // ---- /v2/minecraft/hypixel/:uuid  (raw Hypixel + SkyBlock) -----------
+    // Only fetched when asked for. Returns 200 even when the player never
+    // joined Hypixel — `source` says why each section is null.
+    const mch = path.match(/^\/v2\/minecraft\/hypixel\/([0-9a-fA-F-]{32,36})$/);
+    if (mch) {
+      const uuid = mch[1];
+      if (!isMinecraftUuid(uuid)) {
+        return json(
+          { success: false, error: { code: "invalid_uuid", message: "Not a Minecraft UUID (32 hex chars, dashes optional)." } },
+          400,
+        );
+      }
+      const data = await getMinecraftHypixel(env, uuid, ctx, wantsForce(url));
+      return json<UnifiedMinecraftHypixel>({ success: true, data });
+    }
+
     // ---- /v2/lanyard/users  (batch presence) -----------------------------
     if (path === "/v2/lanyard/users") {
       const ids = parseIds(url);
@@ -301,6 +349,18 @@ export default {
     await gatewayStub(env).fetch("https://do/connect");
   },
 };
+
+/** True when the request reached us over plain http (so we should redirect to
+ *  https). Cloudflare terminates TLS, so we check the URL scheme plus the
+ *  proxy headers that carry the original client scheme. */
+function isInsecure(req: Request, url: URL): boolean {
+  if (url.protocol === "http:") return true;
+  const xfProto = req.headers.get("x-forwarded-proto");
+  if (xfProto && xfProto.split(",")[0].trim().toLowerCase() === "http") return true;
+  const visitor = req.headers.get("cf-visitor");
+  if (visitor && /"scheme"\s*:\s*"http"/i.test(visitor)) return true;
+  return false;
+}
 
 function parseIds(url: URL): string[] {
   return Array.from(

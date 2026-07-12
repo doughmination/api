@@ -190,7 +190,7 @@ export const DOCS_HTML = `<!doctype html>
 <header>
   <div class="header-text">
     <h1>Doughmination API reference</h1>
-    <p>Universal API: live Discord presence (Lanyard), Discord profiles, the plural system, and misc services. Base URL: <code>https://doughmination.uk/v2</code></p>
+    <p>Universal API: live Discord presence (Lanyard), Discord profiles, Minecraft skins & Hypixel stats, the plural system, and misc services. Base URL: <code>https://doughmination.uk/v2</code></p>
   </div>
   <button id="navToggle" class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav">
     <span aria-hidden="true">☰</span>
@@ -212,50 +212,63 @@ var GROUPS = [
     id: "auth-overview", name: "Authentication", blurb: "How protected endpoints are secured.",
     endpoints: [
       { m: "GET", path: "Bearer JWT", auth: "jwt",
-        desc: "Most /plural write endpoints require a JWT. Obtain one from POST /plural/login, then send it as 'Authorization: Bearer <token>'. Tokens last 24h. Roles: admin, owner, pet gate specific routes.",
-        note: "Passwords are hashed with PBKDF2 (Web Crypto)." },
+        desc: "Most /plural write endpoints need a login token. Get one from POST /plural/login, then send it as 'Authorization: Bearer <token>'. Tokens last 24 hours. Some routes additionally require an admin, owner, or pet role." },
       { m: "GET", path: "X-Battery-Key", auth: "key",
-        desc: "POST /battery requires the 'X-Battery-Key' header matching one of the comma-separated keys in BATTERY_API_KEYS." },
+        desc: "Reporting a battery level (POST /battery) needs your device key, sent as the 'X-Battery-Key' header." },
       { m: "GET", path: "Bot token", auth: "bot",
-        desc: "The /plural/bot/* endpoints require BOTH 'User-Agent: CloveShortcuts/<version>' and 'Authorization: Bearer <DOUGH_BOT_TOKEN>'." }
+        desc: "The /plural/bot/* endpoints are for the companion Discord bot: they need both a 'User-Agent: CloveShortcuts/<version>' header and the bot's token as 'Authorization: Bearer <token>'." }
     ]
   },
   {
-    id: "lanyard", name: "Lanyard — live presence", blurb: "Real-time Discord presence, backed by the gateway Durable Object.",
+    id: "lanyard", name: "Lanyard — live presence", blurb: "Real-time Discord presence.",
     endpoints: [
       { m: "GET", path: "/lanyard/users/:id", auth: "public",
-        desc: "Live presence for one user: status, activities, Spotify, platform (desktop/mobile/web). 404 if the user shares no monitored guild with the bot.",
-        params: [["id", "Discord user snowflake (16–21 digits)."]] },
+        desc: "A user's live presence: online status, current activities, Spotify, and which platforms they're on (desktop/mobile/web). Returns 404 if the user doesn't share a tracked server with the bot.",
+        params: [["id", "Discord user ID."]] },
       { m: "GET", path: "/lanyard/users?ids=a,b,c", auth: "public",
-        desc: "Batch presence for up to 100 users in one round-trip. Returns a map of id → presence (or null).",
-        params: [["ids", "Comma-separated snowflakes, max 100."]] },
+        desc: "Live presence for up to 100 users at once. Returns a map of user ID → presence (or null).",
+        params: [["ids", "Comma-separated Discord user IDs, max 100."]] },
       { m: "WS", path: "/lanyard/ws", auth: "public",
         desc: "WebSocket speaking the Lanyard socket protocol (op1 Hello, op2 Initialize, op3 Heartbeat, op0 INIT_STATE / PRESENCE_UPDATE)." },
       { m: "GET", path: "/lanyard/status", auth: "public",
-        desc: "Gateway health/debug: connected state, tracked user count, last close code, reconnect attempts." }
+        desc: "Live-presence connection health: whether it's connected, how many users are tracked, and recent reconnect activity." }
     ]
   },
   {
     id: "discord", name: "Discord — profiles & guilds", blurb: "Profile, badges, and guild/role info from Discord.",
     endpoints: [
       { m: "GET", path: "/discord/users/:id", auth: "public",
-        desc: "Full user record: profile + badges + connected accounts + (when a user token is configured) bio/pronouns/reviews, MERGED with live presence. This is the shape the website's presence cards render.",
-        params: [["id", "Discord user snowflake."], ["?fresh / ?nocache / ?refresh", "Bypass caches and re-fetch."]] },
+        desc: "A user's full profile — avatar, banner, badges, connected accounts, and (when available) bio, pronouns and reviews — combined with their live presence.",
+        params: [["id", "Discord user ID."], ["?fresh / ?nocache / ?refresh", "Skip the cache and fetch fresh."]] },
       { m: "GET", path: "/discord/users?ids=a,b,c", auth: "public",
-        desc: "Batch of the merged record above, up to 100 ids, in one round-trip (one DO call for presence + parallel KV-cached profiles). Map of id → record (or null)." },
+        desc: "The same full profile for up to 100 users at once. Returns a map of user ID → profile (or null if not found).",
+        params: [["ids", "Comma-separated Discord user IDs, max 100."]] },
       { m: "GET", path: "/discord/guilds/:invite", auth: "public",
         desc: "Public guild info resolved from an invite code: name, icon/banner/splash, member + online counts.",
         params: [["invite", "Invite code (the part after discord.gg/)."]] },
       { m: "GET", path: "/discord/girls/:idType/:id", auth: "public",
-        desc: "Resolve a role or member within the configured 'girls' guild.",
-        params: [["idType", "'role' or 'member'."], ["id", "Role id or member (user) id."]] }
+        desc: "Look up a role or a member inside the 'girls' server.",
+        params: [["idType", "'role' or 'member'."], ["id", "The role ID or member (user) ID."]] }
+    ]
+  },
+  {
+    id: "minecraft", name: "Minecraft", blurb: "Skins and Hypixel stats for a Minecraft account.",
+    endpoints: [
+      { m: "GET", path: "/minecraft/general/:uuid", auth: "public",
+        desc: "A player's Mojang identity: username, UUID (both dashed and short forms), skin and cape texture URLs, the skin's arm model (classic or slim), and ready-to-embed avatar / head / body render images. Returns 404 if no Minecraft account has that UUID.",
+        params: [["uuid", "Minecraft UUID — 32 hex characters, dashes optional."], ["?fresh / ?nocache / ?refresh", "Skip the cache and fetch fresh."]],
+        example: 'GET /minecraft/general/853c80ef3c3749fdaa49938b674adae6  →  { name, uuid, skin_url, cape_url, skin_model, render: { avatar, head, body } }' },
+      { m: "GET", path: "/minecraft/hypixel/:uuid", auth: "public",
+        desc: "A player's Hypixel stats: the full player object (network level and every game's stats — Bedwars, SkyWars, Duels, and the rest) plus their SkyBlock profiles. Always returns 200; the 'source' field tells you whether each section loaded ('ok') or why it's null — 'not_found' if the player has never joined Hypixel, 'unavailable' if this server isn't serving Hypixel data.",
+        params: [["uuid", "Minecraft UUID — 32 hex characters, dashes optional."], ["?fresh / ?nocache / ?refresh", "Skip the cache and fetch fresh."]],
+        example: 'GET /minecraft/hypixel/853c80ef3c3749fdaa49938b674adae6  →  { name, player: {…}, skyblock: [{…}], source: { player: "ok", skyblock: "ok" } }' }
     ]
   },
   {
     id: "plural-auth", name: "Plural — accounts & auth", blurb: "Login, signup, and the current user.",
     endpoints: [
       { m: "POST", path: "/plural/login", auth: "public",
-        desc: "Log in. Accepts JSON { username, password, turnstile_token } (Turnstile-verified) or legacy form data. Returns { access_token, token_type, success }.",
+        desc: "Log in with your username and password (plus a Turnstile captcha token). Returns an access token to use on protected endpoints.",
         example: 'POST body: { "username": "admin", "password": "…", "turnstile_token": "…" }  →  { "access_token": "…", "token_type": "bearer", "success": true }' },
       { m: "POST", path: "/plural/signup", auth: "public",
         desc: "Create a non-admin account. Body { username, password (≥10 chars), display_name?, turnstile_token }." },
@@ -340,8 +353,7 @@ var GROUPS = [
     id: "plural-realtime", name: "Plural — realtime & admin", blurb: "WebSocket + broadcast controls.",
     endpoints: [
       { m: "WS", path: "/plural/ws", auth: "public",
-        desc: "Realtime socket. On connect emits connection_established; pushes fronters_update, mental_state_update, and force_refresh. Send 'ping' → 'pong', or 'subscribe'.",
-        note: "Hibernatable — idle sockets don't keep the Durable Object awake." },
+        desc: "Realtime updates over WebSocket. On connect you get a connection_established message, then live fronters_update, mental_state_update, and force_refresh events as they happen. Send 'ping' to get 'pong'." },
       { m: "POST", path: "/plural/admin/refresh", auth: "admin",
         desc: "Broadcast a force_refresh to every connected /plural/ws client." }
     ]
@@ -356,7 +368,7 @@ var GROUPS = [
       { m: "POST", path: "/plural/bot/switch", auth: "bot",
         desc: "Switch fronters with validation. Body { member_ids: string[] }." },
       { m: "POST", path: "/plural/bot/token/regenerate", auth: "owner",
-        desc: "Gone — returns 410. The bot token is now set manually via the DOUGH_BOT_TOKEN secret." }
+        desc: "No longer available — returns 410. The bot token is now set manually by the server operator." }
     ]
   },
   {
@@ -377,11 +389,11 @@ var GROUPS = [
     ]
   },
   {
-    id: "system-data", name: "System-data — visitor logs", blurb: "Visit logging + an admin log viewer (DO SQLite).",
+    id: "system-data", name: "System-data — visitor logs", blurb: "Visit logging plus an admin-only log viewer.",
     endpoints: [
       { m: "POST", path: "/system-data/helper", auth: "public",
         desc: "Log a page visit (the frontend pings this on navigation). Body { path? }." },
-      { m: "GET", path: "/system-data/helper?path=", auth: "public", desc: "GET variant (sendBeacon / no-CORS)." },
+      { m: "GET", path: "/system-data/helper?path=", auth: "public", desc: "Log a page visit via a plain GET, for cases where a POST isn't convenient." },
       { m: "GET", path: "/system-data", auth: "admin", desc: "HTML log viewer (single page)." },
       { m: "GET", path: "/system-data/api/stats", auth: "admin", desc: "Totals, unique IPs, last-24h, top paths." },
       { m: "GET", path: "/system-data/api/recent?limit=100", auth: "admin", desc: "Recent visits." },
@@ -395,8 +407,7 @@ var GROUPS = [
     id: "contrib", name: "Contrib", blurb: "Merged git contribution heatmaps.",
     endpoints: [
       { m: "GET", path: "/contribapi", auth: "public",
-        desc: "Merged contribution heatmaps across configured forges (GitHub + Codeberg). Edge-cached for one hour.",
-        note: "Configured via GITHUB_USERNAME/GITHUB_TOKEN and CODEBERG_USERNAME." }
+        desc: "A single contribution heatmap that merges activity from GitHub and Codeberg. Updated at most hourly." }
     ]
   },
   {

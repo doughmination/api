@@ -68,6 +68,12 @@ export interface Env {
   GITHUB_TOKEN?: string;
   /** Codeberg/Forgejo username whose heatmap is fetched (no token needed). */
   CODEBERG_USERNAME?: string;
+
+  // ---- minecraft (/v2/minecraft/:uuid) -----------------------------------
+  /** Hypixel API key (sent as the `API-Key` header). When unset,
+   *  /v2/minecraft/general (Mojang profile + skin) still works, and
+   *  /v2/minecraft/hypixel returns null sections with source "unavailable". */
+  HYPIXEL_API_KEY?: string;
 }
 
 export type DiscordStatus = "online" | "idle" | "dnd" | "offline";
@@ -415,6 +421,47 @@ export interface UnifiedGirlsMember {
   pending: boolean;
   communication_disabled_until: string | null;
 }
+
+/** Mojang identity + skin/cape for a Minecraft account
+ *  (/v2/minecraft/general/:uuid). */
+export interface UnifiedMinecraftGeneral {
+  /** Dashed UUID (canonical form). */
+  uuid: string;
+  /** Undashed UUID (as Mojang/Hypixel return it). */
+  uuid_short: string;
+  name: string | null;
+  /** Raw skin texture file URL (textures.minecraft.net); null if none. */
+  skin_url: string | null;
+  /** "classic" (Steve) or "slim" (Alex) arm model; null if unknown. */
+  skin_model: "classic" | "slim" | null;
+  /** Raw cape texture file URL; null if the account has no cape. */
+  cape_url: string | null;
+  /** Ready-to-embed render URLs from the public crafthead.net proxy. */
+  render: { avatar: string; head: string; body: string };
+  updated_at: number;
+}
+
+/** Hypixel stats for a Minecraft account (/v2/minecraft/hypixel/:uuid).
+ *  `player`/`skyblock` are the raw upstream objects, passed through as-is. */
+export interface UnifiedMinecraftHypixel {
+  uuid: string;
+  /** Hypixel display name, when the player object provides one. */
+  name: string | null;
+  /** Raw Hypixel `player` object; null when unavailable (see source.player). */
+  player: Record<string, unknown> | null;
+  /** Raw Hypixel SkyBlock `profiles` array; null when unavailable. */
+  skyblock: unknown[] | null;
+  updated_at: number;
+  source: {
+    player: MinecraftSourceState;
+    skyblock: MinecraftSourceState;
+  };
+}
+
+/** Why a Hypixel section is (or isn't) present.
+ *  ok = loaded, unavailable = Hypixel not configured on this deployment,
+ *  not_found = the player has never joined Hypixel, error = upstream failure. */
+export type MinecraftSourceState = "ok" | "unavailable" | "not_found" | "error";
 
 export interface ApiEnvelope<T> {
   success: boolean;

@@ -54,3 +54,10 @@ CODEBERG_USERNAME=
 # contribution calendar. https://github.com/settings/personal-access-tokens
 GITHUB_USERNAME=
 GITHUB_TOKEN=
+
+# ---- minecraft (/v2/minecraft/:uuid) ---------------------------------------
+# Hypixel API key, sent as the `API-Key` header. Generate one at
+# https://developer.hypixel.net/. Leave blank to disable /minecraft/hypixel
+# (its sections return null with source "unavailable"); /minecraft/general
+# (Mojang profile + skin) needs no key and always works.
+HYPIXEL_API_KEY=
