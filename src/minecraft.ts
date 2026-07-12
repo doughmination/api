@@ -22,10 +22,31 @@ const MOJANG_PROFILE = "https://sessionserver.mojang.com/session/minecraft/profi
 const HYPIXEL_BASE = "https://api.hypixel.net/v2";
 const CRAFTHEAD = "https://crafthead.net";
 const TTL_SECONDS = 300;
+const USER_AGENT = "doughmination-restful/2.0 (+https://doughmination.uk)";
+
+/**
+ * Thrown when Mojang answers with something other than "here's the profile"
+ * or "no such profile" — e.g. a 429 rate-limit, a 5xx, or a network blip.
+ * The caller must NOT turn this into a 404: the account may well exist, Mojang
+ * just wouldn't tell us right now. Let the route surface a 502 instead.
+ */
+export class MojangUpstreamError extends Error {
+  constructor(readonly status: number) {
+    super(`Mojang sessionserver returned ${status || "a network error"}`);
+    this.name = "MojangUpstreamError";
+  }
+}
 
 /** Strip dashes and lowercase — the form Mojang/Hypixel expect in URLs. */
 function undash(uuid: string): string {
   return uuid.replace(/-/g, "").toLowerCase();
+}
+
+/** Mojang hands back texture URLs as plain http://textures.minecraft.net/...
+ *  The host serves the same bytes over https, so upgrade the scheme to keep
+ *  our output uniform (and dodge mixed-content blocking on https callers). */
+function httpsify(u: string | null): string | null {
+  return u ? u.replace(/^http:\/\//i, "https://") : u;
 }
 
 /** Insert dashes into a 32-char hex uuid -> canonical 8-4-4-4-12 form. */
@@ -101,24 +122,45 @@ export async function getMinecraftGeneral(
   let skin_url: string | null = null;
   let cape_url: string | null = null;
   let skin_model: "classic" | "slim" | null = null;
+
+  let res: Response;
   try {
-    const res = await fetch(`${MOJANG_PROFILE}/${short}`, { headers: { Accept: "application/json" } });
-    if (!res.ok) return null;
-    const data = (await res.json()) as MojangProfileResponse;
-    name = data.name ?? null;
-    const texturesB64 = data.properties?.find((p) => p.name === "textures")?.value;
-    if (texturesB64) {
-      try {
-        const decoded = JSON.parse(atob(texturesB64)) as MojangTexturePayload;
-        skin_url = decoded.textures?.SKIN?.url ?? null;
-        cape_url = decoded.textures?.CAPE?.url ?? null;
-        if (skin_url) skin_model = decoded.textures?.SKIN?.metadata?.model === "slim" ? "slim" : "classic";
-      } catch {
-        /* malformed texture blob — leave nulls */
-      }
-    }
+    res = await fetch(`${MOJANG_PROFILE}/${short}`, {
+      headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+    });
   } catch {
-    return null;
+    // DNS/TLS/connection failure — transient, not a missing account.
+    throw new MojangUpstreamError(0);
+  }
+
+  // Mojang answers 204 (No Content) or 404 for a UUID that maps to no account.
+  // That's the only case where a null (-> 404 to the caller) is correct.
+  if (res.status === 204 || res.status === 404) return null;
+
+  // Anything else non-2xx — 429 rate-limit (common from Cloudflare egress IPs),
+  // 5xx, etc. — means Mojang wouldn't answer, NOT that the account is gone.
+  // Bubble up so the route returns 502 rather than a lying 404.
+  if (!res.ok) throw new MojangUpstreamError(res.status);
+
+  let data: MojangProfileResponse;
+  try {
+    data = (await res.json()) as MojangProfileResponse;
+  } catch {
+    // 200 with an empty/garbled body — also a Mojang hiccup, not a real 404.
+    throw new MojangUpstreamError(res.status);
+  }
+
+  name = data.name ?? null;
+  const texturesB64 = data.properties?.find((p) => p.name === "textures")?.value;
+  if (texturesB64) {
+    try {
+      const decoded = JSON.parse(atob(texturesB64)) as MojangTexturePayload;
+      skin_url = httpsify(decoded.textures?.SKIN?.url ?? null);
+      cape_url = httpsify(decoded.textures?.CAPE?.url ?? null);
+      if (skin_url) skin_model = decoded.textures?.SKIN?.metadata?.model === "slim" ? "slim" : "classic";
+    } catch {
+      /* malformed texture blob — leave nulls */
+    }
   }
 
   const result: UnifiedMinecraftGeneral = {
