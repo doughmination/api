@@ -172,7 +172,7 @@ export const DOCS_HTML = `<!doctype html>
 <body>
 <header>
   <h1>Doughmination Restful <span class="accent-dot">—</span> API reference</h1>
-  <p>Universal API: live Discord presence (Lanyard), Discord profiles, the plural system, and misc services. Base URL: <code>https://restful.doughmination.uk</code></p>
+  <p>Universal API: live Discord presence (Lanyard), Discord profiles, the plural system, and misc services. Base URL: <code>https://doughmination.uk</code></p>
 </header>
 
 <div class="wrap">

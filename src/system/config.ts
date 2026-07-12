@@ -55,7 +55,7 @@ export function adminDisplayName(): string {
 }
 
 export function baseUrl(): string {
-  return (rt().env.BASE_URL ?? "https://doughmination.co.uk").replace(/\/+$/, "");
+  return (rt().env.BASE_URL ?? "https://doughmination.uk").replace(/\/+$/, "");
 }
 
 /** CORS allow-list: built-in defaults plus anything in CORS_ORIGINS. */
@@ -63,12 +63,12 @@ export function corsOrigins(): string[] {
   const defaults = [
     "http://localhost:8080",
     "http://127.0.0.1:8080",
-    "https://www.doughmination.co.uk",
-    "http://www.doughmination.co.uk",
-    "http://frontend",
-    "http://frontend:80",
+    "http://doughmination.uk",
+    "https://doughmination.uk",
     "http://doughmination.co.uk",
     "https://doughmination.co.uk",
+    "https://c.stupid.cat",
+    "http://c.stupid.cat"
   ];
   const extra = (rt().env.CORS_ORIGINS ?? "")
     .split(",")

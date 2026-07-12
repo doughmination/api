@@ -47,7 +47,7 @@ Disallow: /
 User-agent: MJ12bot
 Disallow: /
 
-Sitemap: https://doughmination.co.uk/sitemap.xml
+Sitemap: https://doughmination.uk/sitemap.xml
 `;
 
 staticRoutes.get("/robots.txt", (c) => c.text(ROBOTS_TXT));
@@ -62,7 +62,7 @@ staticRoutes.get("/sitemap.xml", async (c) => {
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
-    <loc>https://doughmination.co.uk/</loc>
+    <loc>https://doughmination.uk/</loc>
     <lastmod>${today}</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
@@ -75,7 +75,7 @@ staticRoutes.get("/sitemap.xml", async (c) => {
       const displayName = member.display_name ?? member.name;
 
       sitemap += `  <url>
-    <loc>https://doughmination.co.uk/${memberName}</loc>
+    <loc>https://doughmination.uk/${memberName}</loc>
     <lastmod>${today}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>`;
@@ -100,7 +100,7 @@ staticRoutes.get("/sitemap.xml", async (c) => {
     return c.body(
       `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://doughmination.co.uk/</loc><lastmod>${today}</lastmod></url>
+  <url><loc>https://doughmination.uk/</loc><lastmod>${today}</lastmod></url>
 </urlset>`,
       200,
       { "Content-Type": "application/xml" },
