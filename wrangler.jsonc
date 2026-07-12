@@ -64,7 +64,7 @@
 		// ADMIN_PASSWORD, DOUGH_BOT_TOKEN, BATTERY_API_KEYS) go in .dev.vars for
 		// local dev and `wrangler secret put <NAME>` in production.
 		"CACHE_TTL": "30",
-		"ADMIN_USERNAME": "admin",
+		"ADMIN_USERNAME": "clove",
 		"ADMIN_DISPLAY_NAME": "Administrator",
 		"BASE_URL": "https://doughmination.co.uk",
 		"CORS_ORIGINS": ""
