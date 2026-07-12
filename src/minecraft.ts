@@ -25,16 +25,61 @@ const TTL_SECONDS = 300;
 const USER_AGENT = "doughmination-restful/2.0 (+https://doughmination.uk)";
 
 /**
- * Thrown when Mojang answers with something other than "here's the profile"
- * or "no such profile" — e.g. a 429 rate-limit, a 5xx, or a network blip.
- * The caller must NOT turn this into a 404: the account may well exist, Mojang
- * just wouldn't tell us right now. Let the route surface a 502 instead.
+ * Profile sources tried in order. Mojang's own sessionserver 403-blocks
+ * Cloudflare Workers egress IPs outright, so we lead with crafthead.net — it
+ * mirrors Mojang and returns the identical { id, name, properties[textures] }
+ * shape — and keep Mojang as a fallback for whenever the mirror is down.
+ */
+const PROFILE_SOURCES: Array<(short: string) => string> = [
+  (short) => `${CRAFTHEAD}/profile/${short}`,
+  (short) => `${MOJANG_PROFILE}/${short}`,
+];
+
+/**
+ * Thrown when *every* profile source answered with something other than "here's
+ * the profile" or "no such profile" — e.g. a 403 block, 429 rate-limit, 5xx, or
+ * a network blip. The caller must NOT turn this into a 404: the account may well
+ * exist, the upstreams just wouldn't tell us. Let the route surface a 502.
  */
 export class MojangUpstreamError extends Error {
   constructor(readonly status: number) {
-    super(`Mojang sessionserver returned ${status || "a network error"}`);
+    super(`Minecraft profile upstream returned ${status || "a network error"}`);
     this.name = "MojangUpstreamError";
   }
+}
+
+/**
+ * Resolve a Mojang profile via the source list. Returns null only when a source
+ * gives a *definitive* not-found (204/404); a blocked/errored source is skipped
+ * so the next one gets a shot. Throws MojangUpstreamError if none succeed.
+ */
+async function fetchMojangProfile(short: string): Promise<MojangProfileResponse | null> {
+  let lastStatus = 0;
+  for (const build of PROFILE_SOURCES) {
+    let res: Response;
+    try {
+      res = await fetch(build(short), {
+        headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+      });
+    } catch {
+      lastStatus = 0;
+      continue; // network failure — try the next source
+    }
+    // A definitive "no such account" from any mirror is trustworthy.
+    if (res.status === 204 || res.status === 404) return null;
+    // 403 block / 429 / 5xx — this source won't answer; fall through to next.
+    if (!res.ok) {
+      lastStatus = res.status;
+      continue;
+    }
+    try {
+      return (await res.json()) as MojangProfileResponse;
+    } catch {
+      lastStatus = res.status;
+      continue; // ok status but empty/garbled body — try next source
+    }
+  }
+  throw new MojangUpstreamError(lastStatus);
 }
 
 /** Strip dashes and lowercase — the form Mojang/Hypixel expect in URLs. */
@@ -54,9 +99,34 @@ function dash(short: string): string {
   return `${short.slice(0, 8)}-${short.slice(8, 12)}-${short.slice(12, 16)}-${short.slice(16, 20)}-${short.slice(20)}`;
 }
 
-/** True for a 32-hex-char uuid with or without dashes. */
+/**
+ * Accept any of the three UUID spellings Minecraft tooling emits and return the
+ * canonical 32-char lowercase hex (dashless), or null if it isn't a UUID:
+ *   - dashed:    d20b556a-e2cc-452d-ab72-6ae082d439af
+ *   - undashed:  d20b556ae2cc452dab726ae082d439af
+ *   - NBT int[]: [I;-771009174,-489929427,-1418564896,-2100020817]
+ * The NBT form (as stored in player .dat / seen on NameMC) is the 128-bit UUID
+ * as four signed 32-bit ints, big-endian; each becomes 8 hex chars once read
+ * back unsigned. Whitespace is tolerated inside the array.
+ */
+export function normalizeMcUuid(input: string): string | null {
+  const s = input.trim();
+
+  const nbt = s.match(/^\[I;\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\]$/);
+  if (nbt) {
+    return nbt
+      .slice(1, 5)
+      .map((n) => (Number(n) >>> 0).toString(16).padStart(8, "0"))
+      .join("");
+  }
+
+  const hex = undash(s);
+  return /^[0-9a-f]{32}$/.test(hex) ? hex : null;
+}
+
+/** True for any of the three accepted UUID spellings (see normalizeMcUuid). */
 export function isMinecraftUuid(uuid: string): boolean {
-  return /^[0-9a-fA-F]{32}$/.test(undash(uuid));
+  return normalizeMcUuid(uuid) !== null;
 }
 
 const generalKey = (short: string) => `minecraft:general:${short}`;
@@ -123,32 +193,10 @@ export async function getMinecraftGeneral(
   let cape_url: string | null = null;
   let skin_model: "classic" | "slim" | null = null;
 
-  let res: Response;
-  try {
-    res = await fetch(`${MOJANG_PROFILE}/${short}`, {
-      headers: { Accept: "application/json", "User-Agent": USER_AGENT },
-    });
-  } catch {
-    // DNS/TLS/connection failure — transient, not a missing account.
-    throw new MojangUpstreamError(0);
-  }
-
-  // Mojang answers 204 (No Content) or 404 for a UUID that maps to no account.
-  // That's the only case where a null (-> 404 to the caller) is correct.
-  if (res.status === 204 || res.status === 404) return null;
-
-  // Anything else non-2xx — 429 rate-limit (common from Cloudflare egress IPs),
-  // 5xx, etc. — means Mojang wouldn't answer, NOT that the account is gone.
-  // Bubble up so the route returns 502 rather than a lying 404.
-  if (!res.ok) throw new MojangUpstreamError(res.status);
-
-  let data: MojangProfileResponse;
-  try {
-    data = (await res.json()) as MojangProfileResponse;
-  } catch {
-    // 200 with an empty/garbled body — also a Mojang hiccup, not a real 404.
-    throw new MojangUpstreamError(res.status);
-  }
+  // Throws MojangUpstreamError if every source is blocked/errored; returns null
+  // only on a definitive not-found.
+  const data = await fetchMojangProfile(short);
+  if (!data) return null;
 
   name = data.name ?? null;
   const texturesB64 = data.properties?.find((p) => p.name === "textures")?.value;

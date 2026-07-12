@@ -28,7 +28,7 @@ import { getProfile } from "./profile";
 import { GatewayManager } from "./gateway";
 import { getGuildInvite } from "./guild";
 import { getGirlsResource, isGirlsIdType } from "./girls";
-import { getMinecraftGeneral, getMinecraftHypixel, isMinecraftUuid, MojangUpstreamError } from "./minecraft";
+import { getMinecraftGeneral, getMinecraftHypixel, normalizeMcUuid, MojangUpstreamError } from "./minecraft";
 import { getContributions } from "./contribapi";
 import { DOCS_HTML } from "./docs";
 import { SystemState } from "./system/do";
@@ -108,6 +108,16 @@ function isSystemPath(path: string): boolean {
     path === "/v2/system-data" ||
     path.startsWith("/v2/system-data/")
   );
+}
+
+/** decodeURIComponent that returns the raw input instead of throwing on a
+ *  malformed %-sequence, so a bad path param becomes a clean 400, not a 500. */
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
 }
 
 function wantsForce(url: URL): boolean {
@@ -236,17 +246,17 @@ export default {
     // ---- /v2/minecraft/general/:uuid  (Mojang profile + skin) ------------
     // Just Mojang identity + skin/cape, so callers that only want a skin
     // don't trigger the Hypixel round-trips.
-    const mcg = path.match(/^\/v2\/minecraft\/general\/([0-9a-fA-F-]{32,36})$/);
+    const mcg = path.match(/^\/v2\/minecraft\/general\/(.+)$/);
     if (mcg) {
-      const uuid = mcg[1];
-      if (!isMinecraftUuid(uuid)) {
+      const short = normalizeMcUuid(safeDecode(mcg[1]));
+      if (!short) {
         return json(
-          { success: false, error: { code: "invalid_uuid", message: "Not a Minecraft UUID (32 hex chars, dashes optional)." } },
+          { success: false, error: { code: "invalid_uuid", message: "Not a Minecraft UUID (dashed, undashed, or NBT int-array form)." } },
           400,
         );
       }
       try {
-        const data = await getMinecraftGeneral(env, uuid, ctx, wantsForce(url));
+        const data = await getMinecraftGeneral(env, short, ctx, wantsForce(url));
         if (!data) {
           return json({ success: false, error: { code: "not_found", message: "No Minecraft account with that UUID." } }, 404);
         }
@@ -265,16 +275,16 @@ export default {
     // ---- /v2/minecraft/hypixel/:uuid  (raw Hypixel + SkyBlock) -----------
     // Only fetched when asked for. Returns 200 even when the player never
     // joined Hypixel — `source` says why each section is null.
-    const mch = path.match(/^\/v2\/minecraft\/hypixel\/([0-9a-fA-F-]{32,36})$/);
+    const mch = path.match(/^\/v2\/minecraft\/hypixel\/(.+)$/);
     if (mch) {
-      const uuid = mch[1];
-      if (!isMinecraftUuid(uuid)) {
+      const short = normalizeMcUuid(safeDecode(mch[1]));
+      if (!short) {
         return json(
-          { success: false, error: { code: "invalid_uuid", message: "Not a Minecraft UUID (32 hex chars, dashes optional)." } },
+          { success: false, error: { code: "invalid_uuid", message: "Not a Minecraft UUID (dashed, undashed, or NBT int-array form)." } },
           400,
         );
       }
-      const data = await getMinecraftHypixel(env, uuid, ctx, wantsForce(url));
+      const data = await getMinecraftHypixel(env, short, ctx, wantsForce(url));
       return json<UnifiedMinecraftHypixel>({ success: true, data });
     }
 
