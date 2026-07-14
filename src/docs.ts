@@ -346,7 +346,7 @@ var GROUPS = [
   {
     id: "plural-metrics", name: "Plural — metrics", blurb: "Fronting analytics.",
     endpoints: [
-      { m: "GET", path: "/plural/metrics/fronting-time?days=30", auth: "auth",
+      { m: "GET", path: "/plural/metrics/fronting-time?days=30", auth: "auth" },
         desc: "Per-member fronting time across 24h/48h/5d/7d/30d windows and totals." },
       { m: "GET", path: "/plural/metrics/switch-frequency?days=30", auth: "auth",
         desc: "Switch counts per window and average switches/day." }
