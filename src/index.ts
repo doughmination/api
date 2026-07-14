@@ -2,7 +2,9 @@
  * index.ts — Worker entry: v2 router + cron keepalive.
  *
  * Namespaces
- *   /v2/lanyard/*     — live presence (Lanyard) + realtime socket
+ *   /v2/ws            — the single realtime socket for ALL live updates
+ *                       (presence, fronting, mental state, devices)  (SystemState DO)
+ *   /v2/lanyard/*     — live presence REST (users / status)
  *   /v2/discord/*     — general Discord info: profile, badges, guilds, girls
  *   /v2/plural/*      — Doughmination system API   (SystemState DO)
  *   /v2/devices/*     — device state (battery, etc.) (SystemState DO)
@@ -10,8 +12,9 @@
  *   /v2/system-data/* — visitor logs + viewer      (SystemState DO)
  *
  * Two Durable Objects:
- *   GATEWAY  — singleton holding the Discord gateway socket (presence).
- *   SYSTEM   — singleton running the Doughmination API + its realtime hub.
+ *   GATEWAY  — singleton holding the Discord gateway socket (presence). Relays
+ *              presence updates to SYSTEM for fan-out; no browser sockets.
+ *   SYSTEM   — singleton running the Doughmination API + the single /v2/ws hub.
  * ===================================================================== */
 
 import type {
@@ -103,6 +106,7 @@ const ID_RE = /^\d{16,21}$/;
 /** Paths owned by the SystemState Durable Object. */
 function isSystemPath(path: string): boolean {
   return (
+    path === "/v2/ws" ||
     path === "/v2/plural" ||
     path.startsWith("/v2/plural/") ||
     path === "/v2/devices" ||
@@ -147,9 +151,9 @@ export default {
 
     const path = url.pathname.replace(/\/+$/, "") || "/";
 
-    // ---- SystemState DO (plural / devices / system-data) -----------------
-    // Forwarded first, and untouched, so its Hono CORS + WebSocket upgrade
-    // (/v2/plural/ws) work end-to-end.
+    // ---- SystemState DO (plural / devices / system-data / realtime) ------
+    // Forwarded first, and untouched, so its Hono CORS + the single realtime
+    // WebSocket upgrade (/v2/ws) work end-to-end.
     if (isSystemPath(path)) {
       return systemStub(env).fetch(req);
     }
@@ -161,11 +165,6 @@ export default {
       return new Response(DOCS_HTML, {
         headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=3600", ...CORS },
       });
-    }
-
-    // ---- Lanyard realtime socket ----------------------------------------
-    if (path === "/v2/lanyard/ws") {
-      return gatewayStub(env).fetch(new Request("https://do/ws", req));
     }
 
     // ---- Lanyard gateway status (debug) ----------------------------------

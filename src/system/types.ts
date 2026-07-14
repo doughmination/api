@@ -13,8 +13,13 @@
  * first run any more.
  */
 export interface SystemEnv {
-  // ---- Durable Object binding (this DO, used for the singleton id) -------
+  // ---- Durable Object bindings -------------------------------------------
+  /** This DO, used for the singleton id. */
   SYSTEM: DurableObjectNamespace;
+  /** The GatewayManager DO (Discord presence). SystemState is the single
+   *  /v2/ws hub, so it pulls presence snapshots from here for INIT_STATE and
+   *  receives live PRESENCE_UPDATE relays from it. */
+  GATEWAY: DurableObjectNamespace;
 
   // ---- PluralKit ---------------------------------------------------------
   /** PluralKit system token (Authorization header for api.pluralkit.me). */

@@ -229,8 +229,6 @@ var GROUPS = [
       { m: "GET", path: "/lanyard/users?ids=a,b,c", auth: "public",
         desc: "Live presence for up to 100 users at once. Returns a map of user ID → presence (or null).",
         params: [["ids", "Comma-separated Discord user IDs, max 100."]] },
-      { m: "WS", path: "/lanyard/ws", auth: "public",
-        desc: "WebSocket speaking the Lanyard socket protocol (op1 Hello, op2 Initialize, op3 Heartbeat, op0 INIT_STATE / PRESENCE_UPDATE)." },
       { m: "GET", path: "/lanyard/status", auth: "public",
         desc: "Live-presence connection health: whether it's connected, how many users are tracked, and recent reconnect activity." }
     ]
@@ -294,7 +292,7 @@ var GROUPS = [
       { m: "GET", path: "/plural/mental-state", auth: "public",
         desc: "Current mental state: { level, updated_at, notes }." },
       { m: "POST", path: "/plural/mental-state", auth: "admin",
-        desc: "Update mental state. Body { level, notes? }. Broadcasts a mental_state_update over /plural/ws." }
+        desc: "Update mental state. Body { level, notes? }. Broadcasts a mental_state_update over /ws." }
     ]
   },
   {
@@ -355,12 +353,12 @@ var GROUPS = [
     ]
   },
   {
-    id: "plural-realtime", name: "Plural — realtime & admin", blurb: "WebSocket + broadcast controls.",
+    id: "plural-realtime", name: "Plural — realtime & admin", blurb: "The unified WebSocket + broadcast controls.",
     endpoints: [
-      { m: "WS", path: "/plural/ws", auth: "public",
-        desc: "Realtime updates over WebSocket. On connect you get a connection_established message, then live fronters_update, mental_state_update, and force_refresh events as they happen. Send 'ping' to get 'pong'." },
+      { m: "WS", path: "/ws", auth: "public",
+        desc: "The single realtime socket for ALL live updates. On connect you get a connection_established message. Fronting (fronters_update), mental state (mental_state_update), device/battery (device_update) and force_refresh events are pushed to every client automatically. For live Discord presence, send a subscribe frame — either { \"type\": \"subscribe\", \"all\": true } or { \"type\": \"subscribe\", \"ids\": [\"<user id>\", …] }; you'll get an init_state snapshot immediately and presence_update events thereafter (only for the users you subscribed to). Every message is a { type, data } object. Send 'ping' to get 'pong'." },
       { m: "POST", path: "/plural/admin/refresh", auth: "admin",
-        desc: "Broadcast a force_refresh to every connected /plural/ws client." }
+        desc: "Broadcast a force_refresh to every connected /ws client." }
     ]
   },
   {

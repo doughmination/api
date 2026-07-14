@@ -13,7 +13,7 @@ import { HttpError } from "../errors";
 
 export const adminRoutes = new Hono<Env>();
 
-/** Force every connected /v2/plural/ws client to refresh (admin only). */
+/** Force every connected /v2/ws client to refresh (admin only). */
 adminRoutes.post("/admin/refresh", requireAuth, requireAdmin, async (c) => {
   try {
     broadcastFrontendUpdate("force_refresh", { message: "Admin initiated refresh" });

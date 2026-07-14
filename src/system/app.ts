@@ -14,7 +14,7 @@
  *   /v2/guestbook/*     — public guestbook (post/list/delete)  (misc)
  *   /v2/system-data/*   — visitor logging + log viewer (misc)
  *
- * The realtime socket /v2/plural/ws is handled by the DO before the request
+ * The single realtime socket /v2/ws is handled by the DO before the request
  * ever reaches this app (see do.ts).
  */
 

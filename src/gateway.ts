@@ -5,9 +5,9 @@
  *   • holds ONE Discord gateway WebSocket (identify / heartbeat / resume),
  *   • ingests presences from READY/GUILD_CREATE/PRESENCE_UPDATE,
  *   • keeps an in-memory userId -> UnifiedPresence map,
- *   • accepts browser WebSockets and speaks the Lanyard socket protocol
- *     (op1 Hello, op2 Initialize, op3 Heartbeat, op0 INIT_STATE/PRESENCE_UPDATE),
- *   • broadcasts PRESENCE_UPDATE to subscribed clients.
+ *   • relays each live PRESENCE_UPDATE to the SystemState DO, which is the
+ *     single browser-facing realtime hub (/v2/ws). This DO no longer accepts
+ *     browser sockets of its own.
  *
  * State is in-memory: if the DO is evicted the gateway reconnects (via cron
  * or alarm) and GUILD_CREATE repopulates presences within a second or two.
@@ -15,14 +15,7 @@
 
 import type { Env, UnifiedPresence } from "./types";
 import { INTENTS, Op } from "./discord/constants";
-import { buildPresence, offlinePresence, type RawPresence } from "./presence";
-
-const CLIENT_HEARTBEAT_INTERVAL = 30_000;
-
-interface ClientSub {
-  all: boolean;
-  ids: Set<string>;
-}
+import { buildPresence, type RawPresence } from "./presence";
 
 export class GatewayManager implements DurableObject {
   private state: DurableObjectState;
@@ -40,8 +33,6 @@ export class GatewayManager implements DurableObject {
   private connectedSince: number | null = null;
 
   private presences = new Map<string, UnifiedPresence>();
-  private clients = new Map<WebSocket, ClientSub>();
-  private dispatchSeq = 0;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -51,10 +42,6 @@ export class GatewayManager implements DurableObject {
   // ---- HTTP surface (called by the Worker) -----------------------------
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
-
-    if (url.pathname === "/ws") {
-      return this.handleClientUpgrade(req);
-    }
 
     // Ensure the gateway is connected (cron / on-demand).
     await this.ensureConnected();
@@ -196,7 +183,28 @@ export class GatewayManager implements DurableObject {
   private applyPresence(raw: RawPresence, broadcast: boolean): void {
     const presence = buildPresence(raw);
     this.presences.set(presence.user_id, presence);
-    if (broadcast) this.broadcast(presence);
+    if (broadcast) this.relayPresence(presence);
+  }
+
+  /** Push a live presence update to the SystemState DO, which fans it out to
+   *  the browser clients subscribed to that user over /v2/ws. Fire-and-forget:
+   *  a failed relay just means one dropped frame, corrected on the next update
+   *  or on the next subscribe's INIT_STATE snapshot. */
+  private relayPresence(presence: UnifiedPresence): void {
+    try {
+      const stub = this.env.SYSTEM.get(this.env.SYSTEM.idFromName("system"));
+      stub
+        .fetch("https://do/internal/presence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(presence),
+        })
+        .catch(() => {
+          /* dropped frame; ignore */
+        });
+    } catch {
+      /* binding unavailable; ignore */
+    }
   }
 
   // ---- heartbeat / identify / resume -----------------------------------
@@ -291,91 +299,5 @@ export class GatewayManager implements DurableObject {
       this.heartbeatTimer = null;
     }
     setTimeout(() => this.ensureConnected(), 500);
-  }
-
-  // ---- browser client sockets (Lanyard protocol) -----------------------
-  private handleClientUpgrade(req: Request): Response {
-    if (req.headers.get("Upgrade") !== "websocket") {
-      return new Response("expected websocket", { status: 426 });
-    }
-    const pair = new WebSocketPair();
-    const client = pair[0];
-    const server = pair[1];
-    server.accept();
-    this.clients.set(server, { all: false, ids: new Set() });
-
-    server.send(JSON.stringify({ op: 1, d: { heartbeat_interval: CLIENT_HEARTBEAT_INTERVAL } }));
-
-    server.addEventListener("message", (e) => this.onClientMessage(server, e));
-    server.addEventListener("close", () => this.clients.delete(server));
-    server.addEventListener("error", () => this.clients.delete(server));
-
-    // Make sure the gateway is alive once someone is listening.
-    this.ensureConnected();
-
-    return new Response(null, { status: 101, webSocket: client });
-  }
-
-  private onClientMessage(socket: WebSocket, e: MessageEvent): void {
-    let msg: any;
-    try {
-      msg = JSON.parse(typeof e.data === "string" ? e.data : "");
-    } catch {
-      socket.close(4006, "invalid_payload");
-      return;
-    }
-    if (msg.op === 3) return; // client heartbeat — nothing to ack
-
-    if (msg.op === 2) {
-      const d = msg.d || {};
-      const sub: ClientSub = { all: false, ids: new Set() };
-      if (d.subscribe_to_all === true) {
-        sub.all = true;
-      } else if (typeof d.subscribe_to_id === "string") {
-        sub.ids.add(d.subscribe_to_id);
-      } else if (Array.isArray(d.subscribe_to_ids)) {
-        for (const id of d.subscribe_to_ids) if (typeof id === "string") sub.ids.add(id);
-      } else {
-        socket.close(4005, "requires_data_object");
-        return;
-      }
-      this.clients.set(socket, sub);
-      this.sendInitState(socket, sub, typeof d.subscribe_to_id === "string" ? d.subscribe_to_id : null);
-      return;
-    }
-
-    socket.close(4004, "unknown_opcode");
-  }
-
-  private sendInitState(socket: WebSocket, sub: ClientSub, singleId: string | null): void {
-    let data: unknown;
-    if (singleId) {
-      data = this.presences.get(singleId) ?? offlinePresence(singleId);
-    } else if (sub.all) {
-      data = Object.fromEntries(this.presences);
-    } else {
-      const map: Record<string, UnifiedPresence> = {};
-      for (const id of sub.ids) map[id] = this.presences.get(id) ?? offlinePresence(id);
-      data = map;
-    }
-    socket.send(JSON.stringify({ op: 0, seq: ++this.dispatchSeq, t: "INIT_STATE", d: data }));
-  }
-
-  private broadcast(presence: UnifiedPresence): void {
-    const payload = JSON.stringify({
-      op: 0,
-      seq: ++this.dispatchSeq,
-      t: "PRESENCE_UPDATE",
-      d: presence,
-    });
-    for (const [socket, sub] of this.clients) {
-      if (sub.all || sub.ids.has(presence.user_id)) {
-        try {
-          socket.send(payload);
-        } catch {
-          this.clients.delete(socket);
-        }
-      }
-    }
   }
 }

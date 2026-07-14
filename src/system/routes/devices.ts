@@ -24,6 +24,7 @@ import { Hono } from "hono";
 import type { Env } from "../hono";
 import { deleteDevice, getAllLevels, getDeviceLevel, setDeviceLevel } from "../services/devices";
 import { verifyBatteryAccess } from "../middleware/auth";
+import { broadcastDeviceUpdate } from "../ws";
 
 export const deviceRoutes = new Hono<Env>();
 
@@ -73,6 +74,7 @@ deviceRoutes.post("/", verifyBatteryAccess, async (c) => {
   }
 
   const record = await setDeviceLevel(device, patch);
+  broadcastDeviceUpdate(record);
   return c.json({ success: true, ...record });
 });
 
@@ -86,6 +88,7 @@ deviceRoutes.delete("/", verifyBatteryAccess, async (c) => {
   if (!deleted) {
     return c.json({ detail: `No state recorded for device '${device}'` }, 404);
   }
+  broadcastDeviceUpdate({ device, deleted: true });
   return c.json({ success: true, device, deleted: true });
 });
 
