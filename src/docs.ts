@@ -356,7 +356,7 @@ var GROUPS = [
     id: "plural-realtime", name: "Plural — realtime & admin", blurb: "The unified WebSocket + broadcast controls.",
     endpoints: [
       { m: "WS", path: "/ws", auth: "public",
-        desc: "The single realtime socket for ALL live updates. On connect you get a connection_established message. Fronting (fronters_update), mental state (mental_state_update), device/battery (device_update) and force_refresh events are pushed to every client automatically. For live Discord presence, send a subscribe frame — either { \"type\": \"subscribe\", \"all\": true } or { \"type\": \"subscribe\", \"ids\": [\"<user id>\", …] }; you'll get an init_state snapshot immediately and presence_update events thereafter (only for the users you subscribed to). Every message is a { type, data } object. Send 'ping' to get 'pong'." },
+        desc: "The single realtime socket for ALL live updates. On connect you get a connection_established message. Fronting (fronters_update), mental state (mental_state_update), device/battery (device_update) and force_refresh events are pushed to every client automatically. For live Discord presence, send a subscribe frame — either { \\"type\\": \\"subscribe\\", \\"all\\": true } or { \\"type\\": \\"subscribe\\", \\"ids\\": [\\"<user id>\\", …] }; you'll get an init_state snapshot immediately and presence_update events thereafter (only for the users you subscribed to). Every message is a { type, data } object. Send 'ping' to get 'pong'." },
       { m: "POST", path: "/plural/admin/refresh", auth: "admin",
         desc: "Broadcast a force_refresh to every connected /ws client." }
     ]
