@@ -1,4 +1,4 @@
-# dough-restful
+# API
 
 A combined Discord **presence** (Lanyard-style) and **profile/badges** (dstn.to-style) API on a **single Cloudflare Worker + Durable Objects**, powered by **one Discord bot**. It also carries the Doughmination plural-system API (fronting, members, mental state, devices, guestbook). Everything returns one unified JSON shape, and all live updates go over a single WebSocket.
 
