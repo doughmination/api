@@ -23,7 +23,7 @@ import { cors } from "hono/cors";
 
 import type { Env } from "./hono";
 import { HttpError } from "./errors";
-import { corsOrigins } from "./config";
+import { corsOrigins, isLocalhostOrigin } from "./config";
 import { initializeAdminUser } from "./services/users";
 
 import { authRoutes } from "./routes/auth";
@@ -74,7 +74,8 @@ export const systemApp = new Hono<Env>();
 systemApp.use(
   "*",
   cors({
-    origin: (origin) => (corsOrigins().includes(origin) ? origin : ""),
+    origin: (origin) =>
+      isLocalhostOrigin(origin) || corsOrigins().includes(origin) ? origin : "",
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   }),

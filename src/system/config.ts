@@ -61,11 +61,16 @@ export function baseUrl(): string {
   return (rt().env.BASE_URL ?? "https://doughmination.uk").replace(/\/+$/, "");
 }
 
-/** CORS allow-list: built-in defaults plus anything in CORS_ORIGINS. */
+/** Any localhost origin, on any port and either scheme — local dev servers
+ *  (Vite :5173, Next :3000, wrangler :8787, …) are always allowed. */
+export function isLocalhostOrigin(origin: string): boolean {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
+}
+
+/** CORS allow-list: built-in defaults plus anything in CORS_ORIGINS.
+ *  Localhost origins are additionally allowed via isLocalhostOrigin(). */
 export function corsOrigins(): string[] {
   const defaults = [
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
     "http://doughmination.uk",
     "https://doughmination.uk",
     "http://doughmination.co.uk",

@@ -471,6 +471,8 @@ export default {
  *  https). Cloudflare terminates TLS, so we check the URL scheme plus the
  *  proxy headers that carry the original client scheme. */
 function isInsecure(req: Request, url: URL): boolean {
+  // Local dev (wrangler / bun dev) has no TLS — never redirect localhost.
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]") return false;
   if (url.protocol === "http:") return true;
   const xfProto = req.headers.get("x-forwarded-proto");
   if (xfProto && xfProto.split(",")[0].trim().toLowerCase() === "http") return true;
