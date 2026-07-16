@@ -77,6 +77,15 @@
 		"ADMIN_USERNAME": "clove",
 		"ADMIN_DISPLAY_NAME": "Administrator",
 		"BASE_URL": "https://doughmination.uk",
-		"CORS_ORIGINS": ""
+		"CORS_ORIGINS": "",
+
+		// Hypixel API policy: the keyed /v2/minecraft/hypixel endpoint only
+		// serves our OWN accounts, never arbitrary players (no proxying the
+		// Public API to third parties). Add every owned UUID here, comma-
+		// separated (any spelling). Empty = endpoint disabled (403).
+		// Accounts: TransCatgorl (main), FontaineDeFurina, ChooseEevee,
+		// MidnightCyan, RealUziDoorman, Doughmination, Genderfae, GothCuddles,
+		// LesbianGothMommy, MeowingForHRT, SpankedByGoths, TransGothicGirl.
+		"MINECRAFT_ALLOWED_UUIDS": "79ef438d69ea473c99cd6a5ec34c6736,d20b556ae2cc452dab726ae082d439af,33d473f2902e458a9da1b345654f5f22,d9ca235297fd4686b680e497432fb719,5387502156ff4f229cd1d1b95293c1ec,c6230d8f1b72449ba2db4c7e4ba9303a,536a2d64b89a423b9fa51ee182f7a118,b046a090cc0845e68e1c2635f4fbda5c,25335e08ea4f4a1880741435df784297,9f34197705164a05b6753a69fff675f7,28a75bbea78f4f7db1bea90e9d38f189,1bd448116a6e4912ab6772849bc89018"
 	}
 }

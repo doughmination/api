@@ -37,7 +37,7 @@ import { getProfile } from "./profile";
 import { GatewayManager } from "./gateway";
 import { getGuildInvite } from "./guild";
 import { getGirlsResource, isGirlsIdType } from "./girls";
-import { getMinecraftGeneral, getMinecraftHypixel, getVanillaCapeList, normalizeMcUuid, MojangUpstreamError } from "./minecraft";
+import { getMinecraftGeneral, getMinecraftHypixel, getVanillaCapeList, normalizeMcUuid, isAllowedHypixelUuid, MojangUpstreamError } from "./minecraft";
 import { getContributions } from "./contribapi";
 import { DOCS_HTML } from "./docs";
 import { ABUSE_HTML, ABUSE_CONTACT, securityTxt } from "./abuse";
@@ -362,9 +362,16 @@ export default {
       }
     }
 
-    // ---- /v2/minecraft/hypixel/:uuid  (raw Hypixel + SkyBlock) -----------
+    // ---- /v2/minecraft/hypixel/:uuid  (Hypixel + SkyBlock) ---------------
     // Only fetched when asked for. Returns 200 even when the player never
     // joined Hypixel — `source` says why each section is null.
+    //
+    // Hypixel API policy compliance:
+    //   - Allowlist: only owner-owned UUIDs (MINECRAFT_ALLOWED_UUIDS) are
+    //     served, so this can't be used to proxy the Public API to third
+    //     parties. An empty allowlist disables the endpoint (403).
+    //   - No force-refresh: ?fresh/?nocache/?refresh are ignored here so the
+    //     public can't bust the 5-min cache and hammer the upstream key.
     const mch = path.match(/^\/v2\/minecraft\/hypixel\/(.+)$/);
     if (mch) {
       const short = normalizeMcUuid(safeDecode(mch[1]));
@@ -374,7 +381,13 @@ export default {
           400,
         );
       }
-      const data = await getMinecraftHypixel(env, short, ctx, wantsForce(url));
+      if (!isAllowedHypixelUuid(env, short)) {
+        return json(
+          { success: false, error: { code: "forbidden", message: "This endpoint only serves the operator's own Minecraft accounts." } },
+          403,
+        );
+      }
+      const data = await getMinecraftHypixel(env, short, ctx, false);
       return json<UnifiedMinecraftHypixel>({ success: true, data });
     }
 

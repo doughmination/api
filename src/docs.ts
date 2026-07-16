@@ -72,6 +72,7 @@ export const DOCS_HTML = `<!doctype html>
   h1 { margin: 0 0 4px; font-size: 21px; color: var(--fg); }
   h1 .accent-dot { color: var(--accent); }
   header p { margin: 0; color: var(--subtext0); font-size: 13.5px; }
+  header p.disclaimer { margin: 6px 0 0; font-size: 12px; color: var(--muted); font-style: italic; }
   header code { color: var(--pink); background: var(--surface0); border: 1px solid var(--line); word-break: break-all; }
 
   .nav-toggle {
@@ -198,6 +199,7 @@ export const DOCS_HTML = `<!doctype html>
   <div class="header-text">
     <h1>Doughmination API reference</h1>
     <p>Universal API: live Discord presence, Discord profiles, Minecraft skins & Hypixel stats, the plural system, and misc services. Base URL: <code>https://doughmination.uk/v2</code> · <a class="self" href="/openapi.json">OpenAPI spec</a> · <a class="self" href="/abuse">Abuse</a> · <a class="self" href="/terms">Terms</a> · <a class="self" href="/privacy">Privacy</a></p>
+    <p class="disclaimer">Not affiliated with, endorsed by, or associated with Hypixel Inc. or Mojang/Microsoft. Hypixel stats are provided via the Hypixel Public API for the operator's own accounts only.</p>
   </div>
   <button id="navToggle" class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav">
     <span aria-hidden="true">☰</span>

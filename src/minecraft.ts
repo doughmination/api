@@ -251,6 +251,28 @@ export async function getVanillaCapeList(env: Env): Promise<VanillaCapeList> {
   return { count: capes.length, capes };
 }
 
+/**
+ * The set of owner-owned UUIDs allowed on the keyed Hypixel endpoint, parsed
+ * from MINECRAFT_ALLOWED_UUIDS (any spelling, comma-separated) into normalized
+ * 32-char hex. Hypixel policy forbids proxying the Public API to third parties,
+ * so the keyed endpoint only ever answers for our own accounts. An empty/unset
+ * var yields an empty set — the route treats that as "disabled".
+ */
+export function allowedHypixelUuids(env: Env): Set<string> {
+  const raw = env.MINECRAFT_ALLOWED_UUIDS ?? "";
+  const out = new Set<string>();
+  for (const part of raw.split(",")) {
+    const norm = normalizeMcUuid(part.trim());
+    if (norm) out.add(norm);
+  }
+  return out;
+}
+
+/** True when `short` (normalized hex) is one of our own allowlisted accounts. */
+export function isAllowedHypixelUuid(env: Env, short: string): boolean {
+  return allowedHypixelUuids(env).has(undash(short));
+}
+
 /** Fetch a Hypixel v2 endpoint and unwrap { success, <key> }.
  *  Returns [value, state] where state explains a null value. */
 async function fetchHypixel<T>(

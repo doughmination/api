@@ -77,6 +77,11 @@ export interface Env {
    *  /v2/minecraft/general (Mojang profile + skin) still works, and
    *  /v2/minecraft/hypixel returns null sections with source "unavailable". */
   HYPIXEL_API_KEY?: string;
+  /** Comma-separated allowlist of owner-owned Minecraft UUIDs (any spelling).
+   *  Per Hypixel API policy the keyed /v2/minecraft/hypixel endpoint only serves
+   *  our own accounts — arbitrary UUIDs are rejected so it can't be used to
+   *  proxy the Public API to third parties. Empty = endpoint disabled. */
+  MINECRAFT_ALLOWED_UUIDS?: string;
 }
 
 export type DiscordStatus = "online" | "idle" | "dnd" | "offline";
