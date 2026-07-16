@@ -15,11 +15,12 @@ interface DeviceRecord {
   wifi?: string | null;
   watch?: boolean;
   airpods?: boolean;
+  location?: string | null;
   updated_at: string;
 }
 
 /** Fields a caller may set. All optional — only provided fields are updated. */
-type DevicePatch = Pick<DeviceRecord, "level" | "charging" | "lowPowerMode" | "wifi" | "watch" | "airpods">;
+type DevicePatch = Pick<DeviceRecord, "level" | "charging" | "lowPowerMode" | "wifi" | "watch" | "airpods" | "location">;
 
 type DevicesMap = Record<string, DeviceRecord>;
 
@@ -54,6 +55,7 @@ export async function setDeviceLevel(
     ...(patch.wifi !== undefined ? { wifi: patch.wifi } : {}),
     ...(patch.watch !== undefined ? { watch: patch.watch } : {}),
     ...(patch.airpods !== undefined ? { airpods: patch.airpods } : {}),
+    ...(patch.location !== undefined ? { location: patch.location } : {}),
     updated_at: new Date().toISOString(),
   };
 
