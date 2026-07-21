@@ -39,6 +39,9 @@ export interface SystemEnv {
   ADMIN_USERNAME?: string;
   ADMIN_PASSWORD?: string;
   ADMIN_DISPLAY_NAME?: string;
+  /** Owner's email address, used for password recovery. Backfilled onto the
+   *  owner account on read if it doesn't have one yet. */
+  ADMIN_EMAIL?: string;
 
   // ---- Manual API keys (replaces generate-on-first-run) ------------------
   /** Static bearer token the Discord bot uses for /api/bot/*. */
@@ -46,9 +49,23 @@ export interface SystemEnv {
   /** Comma-separated device battery-report keys (X-Battery-Key header). */
   BATTERY_API_KEYS?: string;
 
+  // ---- Email (Resend) ----------------------------------------------------
+  /** Resend API key. Without it, password-reset emails cannot be sent. */
+  RESEND_API_KEY?: string;
+  /** Override the Resend API base (self-hosted relay / local testing). */
+  RESEND_API_BASE?: string;
+  /** From address for transactional mail. Must be on a Resend-verified
+   *  domain. Defaults to no-reply@doughmination.win. */
+  EMAIL_FROM?: string;
+  /** Where password-reset links point. Defaults to FRONTEND_URL, then to the
+   *  public site. */
+  PASSWORD_RESET_URL?: string;
+
   // ---- Misc --------------------------------------------------------------
   /** Public base URL, used in a few absolute links. */
   BASE_URL?: string;
+  /** Public URL of the frontend, used to build user-facing links. */
+  FRONTEND_URL?: string;
   /** Comma-separated extra CORS origins (added to the built-in defaults). */
   CORS_ORIGINS?: string;
 }

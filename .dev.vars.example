@@ -43,6 +43,18 @@ ADMIN_PASSWORD=
 # Give this exact value to the Discord bot as DOUGH_API_TOKEN.
 DOUGH_BOT_TOKEN=
 
+# Resend API key — sends password-reset email. Without it, POST
+# /v2/plural/forgot-password still returns its usual opaque success response
+# but no mail goes out (the failure is logged). https://resend.com/api-keys
+# The from address must be on a Resend-verified domain; see EMAIL_FROM in
+# wrangler.jsonc.
+RESEND_API_KEY=
+
+# OPTIONAL — override the Resend API base. Only needed to point at a
+# self-hosted relay, or at a local mock when testing the reset flow.
+# Defaults to https://api.resend.com.
+RESEND_API_BASE=
+
 # MANUAL battery-report key(s), comma-separated. Devices send it as the
 # `X-Battery-Key` header to POST /v2/battery.
 BATTERY_API_KEYS=

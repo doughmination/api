@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 
 import type { Env } from "../hono";
-import { UserResponseSchema, LoginRequestSchema } from "../models";
+import { UserResponseSchema, LoginRequestSchema, EmailSchema } from "../models";
 import type { User } from "../models";
 import { verifyUser, createUser, getUsers } from "../services/users";
 import { createAccessToken, verifyTurnstileToken } from "../security";
@@ -22,6 +22,7 @@ function toUserResponseJson(user: User) {
     id: user.id,
     username: user.username,
     display_name: user.display_name,
+    email: user.email ?? null,
     is_admin: user.is_admin,
     is_owner: user.is_owner,
     is_pet: user.is_pet,
@@ -86,6 +87,15 @@ authRoutes.post("/signup", async (c) => {
   if (!username) throw new HttpError(400, "Username is required");
   if (!password) throw new HttpError(400, "Password is required");
   if (password.length < 10) throw new HttpError(400, "Password must be at least 10 characters long");
+
+  // Email is required at signup — it is the only self-service account
+  // recovery route. Existing accounts predate this and are backfilled by hand.
+  const emailParsed = EmailSchema.safeParse(body.email ?? "");
+  if (!emailParsed.success) {
+    throw new HttpError(400, emailParsed.error.issues[0]?.message ?? "A valid email is required");
+  }
+  const email = emailParsed.data;
+
   if (!turnstileToken) throw new HttpError(400, "Security verification is required");
 
   const ok = await verifyTurnstileToken(turnstileToken, clientIp(c));
@@ -96,10 +106,13 @@ authRoutes.post("/signup", async (c) => {
   if (users.some((u) => u.username.toLowerCase() === usernameLower)) {
     throw new HttpError(400, "Username already exists");
   }
+  if (users.some((u) => u.email && u.email.toLowerCase() === email)) {
+    throw new HttpError(400, "Email address is already in use");
+  }
 
   try {
     const newUser = await createUser(
-      { username, password, display_name: displayName, is_admin: false, is_pet: false },
+      { username, password, email, display_name: displayName, is_admin: false, is_pet: false },
       null,
     );
     return c.json({

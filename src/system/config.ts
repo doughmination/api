@@ -57,9 +57,49 @@ export function adminDisplayName(): string {
   return rt().env.ADMIN_DISPLAY_NAME ?? "Administrator";
 }
 
+/** Owner's email. Backfilled onto the owner account on read, so an owner
+ *  created before emails existed still gets one without a manual edit. */
+export function adminEmail(): string | undefined {
+  const value = rt().env.ADMIN_EMAIL?.trim().toLowerCase();
+  return value || undefined;
+}
+
 export function baseUrl(): string {
   return (rt().env.BASE_URL ?? "https://doughmination.uk").replace(/\/+$/, "");
 }
+
+/** Public URL of the frontend (where reset links land). */
+export function frontendUrl(): string {
+  return (rt().env.FRONTEND_URL ?? baseUrl()).replace(/\/+$/, "");
+}
+
+// ---------------------------------------------------------------------------
+// Email (Resend)
+// ---------------------------------------------------------------------------
+
+export function resendApiKey(): string | undefined {
+  return rt().env.RESEND_API_KEY;
+}
+
+/** Resend API base. Overridable so a fork can point at a self-hosted relay,
+ *  and so the flow can be exercised against a local mock in tests. */
+export function resendApiBase(): string {
+  return (rt().env.RESEND_API_BASE ?? "https://api.resend.com").replace(/\/+$/, "");
+}
+
+export function emailFrom(): string {
+  return rt().env.EMAIL_FROM ?? "Doughmination System <no-reply@doughmination.win>";
+}
+
+/** Base URL of the password-reset page. The token is appended as ?token=. */
+export function passwordResetUrl(): string {
+  const configured = rt().env.PASSWORD_RESET_URL;
+  if (configured) return configured.replace(/\/+$/, "");
+  return `${frontendUrl()}/user/reset-password`;
+}
+
+/** How long a password-reset token stays valid. */
+export const PASSWORD_RESET_TTL_MINUTES = 15;
 
 /** Any localhost origin, on any port and either scheme — local dev servers
  *  (Vite :5173, Next :3000, wrangler :8787, …) are always allowed. */

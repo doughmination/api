@@ -16,11 +16,22 @@ import { z } from "zod";
 // USER MODELS
 // ============================================================================
 
+/** Emails are stored lowercased and trimmed so uniqueness checks are stable. */
+export const EmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email("Must be a valid email address")
+  .max(254, "Email address is too long");
+
 export const UserSchema = z.object({
   id: z.string(),
   username: z.string(),
   password_hash: z.string(),
   display_name: z.string().nullable().optional(),
+  /** Optional on the schema so pre-existing accounts (created before emails
+   *  were required) still load. New signups always set it. */
+  email: z.string().nullable().optional(),
   is_admin: z.boolean().default(false),
   is_owner: z.boolean().default(false),
   is_pet: z.boolean().default(false),
@@ -31,6 +42,7 @@ export type User = z.infer<typeof UserSchema>;
 export const UserCreateSchema = z.object({
   username: z.string(),
   password: z.string(),
+  email: EmailSchema.nullable().optional(),
   display_name: z.string().nullable().optional(),
   is_admin: z.boolean().default(false),
   is_pet: z.boolean().default(false),
@@ -41,6 +53,7 @@ export const UserResponseSchema = z.object({
   id: z.string(),
   username: z.string(),
   display_name: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
   is_admin: z.boolean().default(false),
   is_owner: z.boolean().default(false),
   is_pet: z.boolean().default(false),
@@ -53,6 +66,8 @@ export const UserUpdateSchema = z.object({
   current_password: z.string().nullable().optional(),
   new_password: z.string().nullable().optional(),
   avatar_url: z.string().nullable().optional(),
+  /** Owner-only. Rejected with 403 for anyone else — see services/users.ts. */
+  email: EmailSchema.nullable().optional(),
   is_admin: z.boolean().nullable().optional(),
   is_pet: z.boolean().nullable().optional(),
 });
@@ -64,6 +79,19 @@ export const LoginRequestSchema = z.object({
   turnstile_token: z.string(),
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
+
+export const ForgotPasswordRequestSchema = z.object({
+  email: EmailSchema,
+  turnstile_token: z.string().min(1, "Security verification is required"),
+});
+export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordRequestSchema>;
+
+export const ResetPasswordRequestSchema = z.object({
+  token: z.string().min(1, "Reset token is required"),
+  new_password: z.string().min(10, "Password must be at least 10 characters long"),
+  turnstile_token: z.string().min(1, "Security verification is required"),
+});
+export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>;
 
 /** Strip the password hash for public-facing responses. */
 export function toUserResponse(user: User): UserResponse {

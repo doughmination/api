@@ -76,8 +76,22 @@
 		"CACHE_TTL": "30",
 		"ADMIN_USERNAME": "clove",
 		"ADMIN_DISPLAY_NAME": "Administrator",
+		// Owner's recovery address. Backfilled onto the owner account on read,
+		// so the pre-existing account gets one without a manual edit. Public
+		// address, hence a var rather than a secret.
+		"ADMIN_EMAIL": "admin@doughmination.win",
 		"BASE_URL": "https://doughmination.uk",
 		"CORS_ORIGINS": "",
+
+		// Transactional email (password reset), sent via Resend. The API key
+		// itself is a secret — `wrangler secret put RESEND_API_KEY`.
+		// EMAIL_FROM must be on a Resend-verified domain.
+		"EMAIL_FROM": "Doughmination System <no-reply@doughmination.win>",
+		// Where the reset link in the email points. The frontend lives on
+		// doughmination.co.uk; this API is doughmination.uk — so these must
+		// NOT inherit BASE_URL.
+		"FRONTEND_URL": "https://doughmination.co.uk",
+		"PASSWORD_RESET_URL": "https://doughmination.co.uk/user/reset-password",
 
 		// Hypixel API policy: the keyed /v2/minecraft/hypixel endpoint only
 		// serves our OWN accounts, never arbitrary players (no proxying the

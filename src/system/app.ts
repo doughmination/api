@@ -27,6 +27,7 @@ import { corsOrigins, isLocalhostOrigin } from "./config";
 import { initializeAdminUser } from "./services/users";
 
 import { authRoutes } from "./routes/auth";
+import { passwordResetRoutes } from "./routes/password_reset";
 import { systemRoutes } from "./routes/system";
 import { membersRoutes } from "./routes/members";
 import { frontingRoutes } from "./routes/fronting";
@@ -57,6 +58,7 @@ async function ensureSeeded(): Promise<void> {
 
 const pluralApp = new Hono<Env>();
 pluralApp.route("/", authRoutes);
+pluralApp.route("/", passwordResetRoutes);
 pluralApp.route("/", systemRoutes);
 pluralApp.route("/", membersRoutes);
 pluralApp.route("/", frontingRoutes);
