@@ -31,6 +31,8 @@ import type { SystemEnv } from "./types";
 import type { UnifiedPresence } from "../types";
 import { setRuntime, type Store } from "./runtime";
 import { systemApp } from "./app";
+import { deleteUnverifiedUsers } from "./services/users";
+import { UNVERIFIED_ACCOUNT_TTL_HOURS } from "./config";
 
 class DoStore implements Store {
   constructor(private storage: DurableObjectStorage) {}
@@ -53,6 +55,8 @@ class DoStore implements Store {
 const WS_PATH = "/v2/ws";
 /** Internal DO-to-DO path GatewayManager relays presence updates to. */
 const PRESENCE_RELAY_PATH = "/internal/presence";
+/** Internal cron entrypoint — sweeps unconfirmed signups. */
+const MAINTENANCE_PATH = "/internal/maintenance";
 
 /** Per-socket presence subscription, persisted on the hibernatable socket via
  *  serializeAttachment so it survives eviction. Presence events are filtered
@@ -92,6 +96,18 @@ export class SystemState implements DurableObject {
         return new Response("Expected WebSocket upgrade", { status: 426 });
       }
       return this.handleWsUpgrade();
+    }
+
+    // Scheduled maintenance, driven by the Worker's cron trigger. Internal
+    // only — the public router never forwards this path.
+    if (url.pathname === MAINTENANCE_PATH && req.method === "POST") {
+      const removed = await deleteUnverifiedUsers(UNVERIFIED_ACCOUNT_TTL_HOURS);
+      if (removed.length) {
+        console.info(
+          `Maintenance: removed ${removed.length} unconfirmed account(s): ${removed.join(", ")}`,
+        );
+      }
+      return Response.json({ removed_unverified: removed.length });
     }
 
     // Presence relay from GatewayManager (DO-to-DO, never reaches here via the

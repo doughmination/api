@@ -10,10 +10,14 @@ import type { Context } from "hono";
 import type { Env } from "../hono";
 import { UserResponseSchema, LoginRequestSchema, EmailSchema } from "../models";
 import type { User } from "../models";
-import { verifyUser, createUser, getUsers } from "../services/users";
+import { verifyUser, createUser, getUsers, isEmailVerified } from "../services/users";
+import { createCorrectionToken, CORRECTION_TTL_HOURS } from "../services/email_verification";
+import { sendVerificationEmail } from "./email_verification";
+import { UNVERIFIED_ACCOUNT_TTL_HOURS } from "../config";
 import { createAccessToken, verifyTurnstileToken } from "../security";
 import { requireAuth } from "../middleware/auth";
 import { HttpError } from "../errors";
+import { rt } from "../runtime";
 
 export const authRoutes = new Hono<Env>();
 
@@ -23,6 +27,9 @@ function toUserResponseJson(user: User) {
     username: user.username,
     display_name: user.display_name,
     email: user.email ?? null,
+    email_verified: isEmailVerified(user),
+    pending_email: user.pending_email ?? null,
+    created_at: user.created_at ?? null,
     is_admin: user.is_admin,
     is_owner: user.is_owner,
     is_pet: user.is_pet,
@@ -60,6 +67,18 @@ authRoutes.post("/login", async (c) => {
   const user = await verifyUser(username, password);
   if (!user) {
     throw new HttpError(401, "Invalid credentials", { "WWW-Authenticate": "Bearer" });
+  }
+
+  // Unconfirmed signups cannot log in. The credentials were correct, so it's
+  // safe to say why — and the frontend needs to know in order to offer a
+  // resend. Legacy accounts predate verification and are treated as confirmed
+  // (see isEmailVerified), so this never locks out an existing user.
+  if (!isEmailVerified(user)) {
+    throw new HttpError(
+      403,
+      "Confirm your email address before logging in. Check your inbox for the confirmation link.",
+      { "X-Auth-Reason": "email_unverified" },
+    );
   }
 
   const token = await createAccessToken({
@@ -114,10 +133,25 @@ authRoutes.post("/signup", async (c) => {
     const newUser = await createUser(
       { username, password, email, display_name: displayName, is_admin: false, is_pet: false },
       null,
+      { emailVerified: false },
     );
+
+    const sent = await sendVerificationEmail(newUser, email, "signup");
+
+    // The correction token goes ONLY to the client that just created the
+    // account, and is what lets them fix a typo'd address without a password.
+    // Treat it like a credential: it is not recoverable once this tab is gone.
+    const correctionToken = await createCorrectionToken(newUser.id);
+
     return c.json({
       success: true,
-      message: "Account created successfully",
+      message: sent
+        ? "Account created. Check your inbox to confirm your email address."
+        : "Account created, but we couldn't send the confirmation email. Use the resend option.",
+      email_sent: sent,
+      correction_token: correctionToken,
+      correction_expires_in_hours: CORRECTION_TTL_HOURS,
+      unverified_deleted_after_hours: UNVERIFIED_ACCOUNT_TTL_HOURS,
       user: toUserResponseJson(newUser),
     });
   } catch (err) {
@@ -135,6 +169,40 @@ authRoutes.get("/users/check-username", async (c) => {
   const usernameLower = username.trim().toLowerCase();
   const exists = users.some((u) => u.username.toLowerCase() === usernameLower);
   return c.json({ username, exists, available: !exists });
+});
+
+/**
+ * Public email availability check, powering the live signup field.
+ *
+ * This intentionally reveals whether an address is registered — same trade-off
+ * as /forgot-password, accepted so signup can flag duplicates before submit.
+ * Rate limited per IP because that disclosure makes it worth probing.
+ */
+authRoutes.get("/users/check-email", async (c) => {
+  const raw = c.req.query("email") ?? "";
+  const parsedEmail = EmailSchema.safeParse(raw);
+  if (!parsedEmail.success) {
+    throw new HttpError(400, "A valid email parameter is required");
+  }
+
+  const ip = clientIp(c);
+  if (ip) {
+    const key = `checkemail_rl:${ip}`;
+    const bucket = await rt().store.get<{ count: number; reset: number }>(key, {
+      count: 0,
+      reset: 0,
+    });
+    const now = Date.now();
+    const window = now > bucket.reset ? { count: 0, reset: now + 60_000 } : bucket;
+    if (window.count >= 20) {
+      throw new HttpError(429, "Too many lookups. Please wait a minute and try again.");
+    }
+    await rt().store.put(key, { count: window.count + 1, reset: window.reset });
+  }
+
+  const users = await getUsers();
+  const exists = users.some((u) => u.email && u.email.toLowerCase() === parsedEmail.data);
+  return c.json({ email: parsedEmail.data, exists, available: !exists });
 });
 
 authRoutes.get("/user_info", requireAuth, (c) => c.json(toUserResponseJson(c.get("user") as User)));

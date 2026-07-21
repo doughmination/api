@@ -444,6 +444,14 @@ export default {
   // Cron keepalive — keep the gateway DO connected.
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
     await gatewayStub(env).fetch("https://do/connect");
+
+    // Housekeeping inside SystemState: removes signups that never confirmed
+    // their address. Failures here must not stop the gateway keepalive above.
+    try {
+      await systemStub(env).fetch("https://do/internal/maintenance", { method: "POST" });
+    } catch (err) {
+      console.error(`Maintenance sweep failed: ${String(err)}`);
+    }
   },
 };
 

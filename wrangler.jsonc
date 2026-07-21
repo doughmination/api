@@ -92,6 +92,7 @@
 		// NOT inherit BASE_URL.
 		"FRONTEND_URL": "https://doughmination.co.uk",
 		"PASSWORD_RESET_URL": "https://doughmination.co.uk/user/reset-password",
+		"EMAIL_VERIFY_URL": "https://doughmination.co.uk/user/verify-email",
 
 		// Hypixel API policy: the keyed /v2/minecraft/hypixel endpoint only
 		// serves our OWN accounts, never arbitrary players (no proxying the

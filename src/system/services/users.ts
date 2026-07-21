@@ -78,6 +78,18 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/**
+ * Whether a user's address counts as verified.
+ *
+ * MIGRATION SAFETY — the default matters. Accounts created before
+ * verification existed have no `email_verified` field, and reading absent as
+ * TRUE is what grandfathers them: they keep logging in, and the cleanup sweep
+ * never sees them as candidates. Only an explicit `false` means unverified.
+ */
+export function isEmailVerified(user: User): boolean {
+  return user.email_verified !== false;
+}
+
 export async function getUserByEmail(email: string): Promise<User | null> {
   const target = normalizeEmail(email);
   if (!target) return null;
@@ -85,17 +97,38 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   return users.find((u) => u.email && normalizeEmail(u.email) === target) ?? null;
 }
 
-/** Throw if `email` belongs to a different account. */
+/**
+ * Throw if `email` is taken. Pending (unverified) changes count as taken too,
+ * so two accounts can't both be mid-flight onto the same address and have the
+ * second confirmation collide.
+ */
 async function assertEmailAvailable(email: string, exceptUserId?: string): Promise<void> {
-  const existing = await getUserByEmail(email);
-  if (existing && existing.id !== exceptUserId) {
-    throw new Error("Email address is already in use");
-  }
+  const target = normalizeEmail(email);
+  const users = await getUsers();
+  const clash = users.find(
+    (u) =>
+      u.id !== exceptUserId &&
+      ((u.email && normalizeEmail(u.email) === target) ||
+        (u.pending_email && normalizeEmail(u.pending_email) === target)),
+  );
+  if (clash) throw new Error("Email address is already in use");
+}
+
+export interface CreateUserOptions {
+  /**
+   * Whether the address should be treated as already proven.
+   *
+   * Public signup passes false — the user must confirm before logging in.
+   * Owner-created accounts pass true, since the owner is assigning the
+   * address deliberately and shouldn't have to chase a confirmation.
+   */
+  emailVerified?: boolean;
 }
 
 export async function createUser(
   userCreate: UserCreate,
   requestingUser?: User | null,
+  options: CreateUserOptions = {},
 ): Promise<User> {
   const users = await getUsers();
 
@@ -126,12 +159,19 @@ export async function createUser(
   const email = userCreate.email ? normalizeEmail(userCreate.email) : null;
   if (email) await assertEmailAvailable(email);
 
+  // The owner is never gated on confirming their own address.
+  const emailVerified = isOwner ? true : options.emailVerified ?? true;
+
   const newUser: User = {
     id: crypto.randomUUID(),
     username: userCreate.username,
     password_hash: await hashPassword(userCreate.password),
     display_name: userCreate.display_name ?? null,
     email,
+    email_verified: emailVerified,
+    email_verified_at: emailVerified ? new Date().toISOString() : null,
+    created_at: new Date().toISOString(),
+    pending_email: null,
     is_admin: isAdmin,
     is_owner: isOwner,
     is_pet: isPet,
@@ -173,19 +213,59 @@ export async function updateUser(
     throw new Error("Only the owner can change user roles");
   }
 
-  // Email is owner-managed only. Users cannot change their own address, and
-  // plain admins cannot change anyone's — that's deliberate, because email is
-  // the account-recovery factor.
+  // ---- Email ------------------------------------------------------------
+  //
+  // Who may change it:
+  //   - the account's own user (requires current_password)
+  //   - the owner, for anybody
+  //   - NOT a plain admin acting on someone else — email is the recovery
+  //     factor, so letting an admin repoint it would be an account takeover
+  //     primitive.
+  //
+  // A self-service change does NOT take effect immediately: the new address
+  // goes to `pending_email` and only replaces `email` once confirmed, so a
+  // typo can never lock someone out of their own account. The owner setting an
+  // address is applied directly and marked verified.
   let email = user.email ?? null;
+  let pendingEmail = user.pending_email ?? null;
+  let emailVerified = isEmailVerified(user);
+  let emailVerifiedAt = user.email_verified_at ?? null;
+  /** Set when the caller must be sent a confirmation link for a new address. */
+  let pendingEmailToConfirm: string | null = null;
+
   if (userUpdate.email !== undefined) {
     const requestedEmail = userUpdate.email ? normalizeEmail(userUpdate.email) : null;
-    const isChange = requestedEmail !== email;
-    if (isChange) {
-      if (!requestingUser?.is_owner) {
-        throw new Error("Only the owner can change email addresses");
+    const isSelf = requestingUser?.id === user.id;
+    const isOwnerActing = !!requestingUser?.is_owner;
+
+    if (requestedEmail !== email) {
+      if (!isSelf && !isOwnerActing) {
+        throw new Error("You can only change your own email address");
       }
+
       if (requestedEmail) await assertEmailAvailable(requestedEmail, user.id);
-      email = requestedEmail;
+
+      if (isOwnerActing && !isSelf) {
+        // Owner assigning an address on someone's behalf: applied outright.
+        email = requestedEmail;
+        pendingEmail = null;
+        emailVerified = true;
+        emailVerifiedAt = new Date().toISOString();
+      } else {
+        // Changing your own address — prove you're still you first.
+        if (!userUpdate.current_password) {
+          throw new Error("Enter your current password to change your email address");
+        }
+        if (!(await verifyPassword(userUpdate.current_password, user.password_hash))) {
+          throw new Error("Current password is incorrect");
+        }
+
+        if (!requestedEmail) throw new Error("Email address cannot be empty");
+
+        // Held aside until confirmed; `email` deliberately stays put.
+        pendingEmail = requestedEmail;
+        pendingEmailToConfirm = requestedEmail;
+      }
     }
   }
 
@@ -208,11 +288,20 @@ export async function updateUser(
     // `undefined` = field omitted, keep current value; explicit `null` clears it.
     display_name: userUpdate.display_name !== undefined ? userUpdate.display_name : user.display_name,
     email,
+    email_verified: emailVerified,
+    email_verified_at: emailVerifiedAt,
+    created_at: user.created_at ?? null,
+    pending_email: pendingEmail,
     is_admin: newIsAdmin,
     is_owner: newIsOwner,
     is_pet: newIsPet,
     avatar_url: userUpdate.avatar_url !== undefined ? userUpdate.avatar_url : user.avatar_url ?? null,
   };
+
+  // Signals to the route that a confirmation link must go out. Compared
+  // against the previous value rather than returned separately, so the
+  // function signature stays as it was.
+  void pendingEmailToConfirm;
 
   users[index] = updatedUser;
   await saveUsers(users);
@@ -239,6 +328,100 @@ export async function deleteUser(userId: string, requestingUser?: User | null): 
     return true;
   }
   return false;
+}
+
+/**
+ * Mark an address as proven.
+ *
+ * `email` is the address the token was issued for. If it matches the user's
+ * `pending_email`, the change is applied now; if it matches their current
+ * address, this is a signup confirmation. A token for anything else is stale
+ * (the address moved on since it was issued) and is refused.
+ */
+export async function applyEmailVerification(
+  userId: string,
+  email: string,
+): Promise<User | null> {
+  const users = await getUsers();
+  const index = users.findIndex((u) => u.id === userId);
+  if (index === -1) return null;
+
+  const user = users[index];
+  const target = normalizeEmail(email);
+  const current = user.email ? normalizeEmail(user.email) : null;
+  const pending = user.pending_email ? normalizeEmail(user.pending_email) : null;
+
+  if (target !== current && target !== pending) return null;
+
+  users[index] = {
+    ...user,
+    email: target,
+    pending_email: null,
+    email_verified: true,
+    email_verified_at: new Date().toISOString(),
+  };
+
+  await saveUsers(users);
+  return users[index];
+}
+
+/**
+ * Replace the address on an account that has not been verified yet, without a
+ * password. Callers MUST have already validated a correction token — see
+ * services/email_verification.ts. Refuses once the account is verified.
+ */
+export async function correctUnverifiedEmail(
+  userId: string,
+  email: string,
+): Promise<User | null> {
+  const users = await getUsers();
+  const index = users.findIndex((u) => u.id === userId);
+  if (index === -1) return null;
+
+  const user = users[index];
+  if (isEmailVerified(user)) {
+    throw new Error("This account is already verified. Change the address from your profile.");
+  }
+
+  const target = normalizeEmail(email);
+  await assertEmailAvailable(target, user.id);
+
+  users[index] = { ...user, email: target, pending_email: null, email_verified: false };
+  await saveUsers(users);
+  return users[index];
+}
+
+/**
+ * Delete accounts that signed up but never confirmed their address.
+ *
+ * Guards, in order of how badly each would hurt if missed:
+ *   1. `email_verified === false` — anything else, including legacy accounts
+ *      with the field absent, is verified per isEmailVerified() and is skipped.
+ *   2. `created_at` must be present and parseable. Legacy rows have no
+ *      timestamp, so this is a second, independent reason they survive.
+ *   3. Never the owner, whatever its state.
+ */
+export async function deleteUnverifiedUsers(maxAgeHours: number): Promise<string[]> {
+  const users = await getUsers();
+  const cutoff = Date.now() - maxAgeHours * 60 * 60 * 1000;
+
+  const doomed = users.filter((u) => {
+    if (u.is_owner || isOwnerUsername(u.username)) return false;
+    if (u.email_verified !== false) return false;
+    if (!u.created_at) return false;
+
+    const created = Date.parse(u.created_at);
+    if (Number.isNaN(created)) return false;
+
+    return created < cutoff;
+  });
+
+  if (doomed.length === 0) return [];
+
+  const doomedIds = new Set(doomed.map((u) => u.id));
+  await saveUsers(users.filter((u) => !doomedIds.has(u.id)));
+
+  return doomed.map((u) => u.username);
 }
 
 /**

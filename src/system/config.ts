@@ -98,8 +98,18 @@ export function passwordResetUrl(): string {
   return `${frontendUrl()}/user/reset-password`;
 }
 
+/** Base URL of the email-confirmation page. Token appended as ?token=. */
+export function verificationUrl(): string {
+  const configured = rt().env.EMAIL_VERIFY_URL;
+  if (configured) return configured.replace(/\/+$/, "");
+  return `${frontendUrl()}/user/verify-email`;
+}
+
 /** How long a password-reset token stays valid. */
 export const PASSWORD_RESET_TTL_MINUTES = 15;
+
+/** Unconfirmed signups are deleted once they are older than this. */
+export const UNVERIFIED_ACCOUNT_TTL_HOURS = 24;
 
 /** Any localhost origin, on any port and either scheme — local dev servers
  *  (Vite :5173, Next :3000, wrangler :8787, …) are always allowed. */

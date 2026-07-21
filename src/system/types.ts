@@ -60,6 +60,9 @@ export interface SystemEnv {
   /** Where password-reset links point. Defaults to FRONTEND_URL, then to the
    *  public site. */
   PASSWORD_RESET_URL?: string;
+  /** Where email-confirmation links point. Defaults to
+   *  FRONTEND_URL + /user/verify-email. */
+  EMAIL_VERIFY_URL?: string;
 
   // ---- Misc --------------------------------------------------------------
   /** Public base URL, used in a few absolute links. */

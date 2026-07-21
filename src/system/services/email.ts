@@ -152,3 +152,191 @@ export function passwordResetTemplate({ displayName, resetUrl, ttlMinutes }: Pas
 
   return { subject: "Reset your Doughmination System password", html, text };
 }
+
+export function verifyEmailTemplate({
+  displayName,
+  verifyUrl,
+  ttlHours,
+  isChange,
+  deleteAfterHours,
+}: {
+  displayName: string;
+  verifyUrl: string;
+  ttlHours: number;
+  /** True when confirming a change of address rather than a new signup. */
+  isChange: boolean;
+  /** Unverified signups are removed after this long. Omitted for changes,
+   *  where nothing gets deleted. */
+  deleteAfterHours?: number;
+}): { subject: string; html: string; text: string } {
+  const safeName = escapeHtml(displayName);
+  const safeUrl = escapeHtml(verifyUrl);
+
+  const lead = isChange
+    ? "Confirm this address to finish moving your Doughmination System account to it."
+    : "Confirm your address to finish setting up your Doughmination System account.";
+
+  const warning = isChange
+    ? "Your account keeps using its current address until you confirm here."
+    : deleteAfterHours
+      ? `You won't be able to log in until you confirm, and unconfirmed accounts are removed after ${deleteAfterHours} hours.`
+      : "You won't be able to log in until you confirm.";
+
+  const text = [
+    `Hi ${displayName},`,
+    "",
+    lead,
+    "",
+    verifyUrl,
+    "",
+    `This link expires in ${ttlHours} hours.`,
+    warning,
+    "",
+    "If you didn't expect this email, you can ignore it.",
+    "",
+    "— Doughmination System",
+  ].join("\n");
+
+  const html = `<!doctype html>
+<html lang="en">
+<body style="margin:0;padding:24px;background:#1c0f14;font-family:ui-sans-serif,system-ui,sans-serif;color:#f5dde6;">
+  <div style="max-width:520px;margin:0 auto;background:#2b1620;border:1px solid #3d1f2c;border-radius:12px;padding:28px;">
+    <h1 style="margin:0 0 16px;font-size:20px;color:#ff5c8a;">${isChange ? "Confirm your new email" : "Confirm your email"}</h1>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Hi ${safeName},</p>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${escapeHtml(lead)}</p>
+    <p style="margin:24px 0;text-align:center;">
+      <a href="${safeUrl}" style="display:inline-block;background:#ff5c8a;color:#1c0f14;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:8px;font-size:15px;">Confirm email address</a>
+    </p>
+    <p style="margin:0 0 14px;font-size:13px;line-height:1.6;color:#c9a8b9;">
+      This link expires in ${ttlHours} hours. ${escapeHtml(warning)}
+    </p>
+    <p style="margin:0 0 14px;font-size:13px;line-height:1.6;color:#c9a8b9;">
+      If you didn't expect this email, you can ignore it.
+    </p>
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#9a7489;word-break:break-all;">
+      Button not working? Paste this into your browser:<br />${safeUrl}
+    </p>
+  </div>
+</body>
+</html>`;
+
+  return {
+    subject: isChange
+      ? "Confirm your new Doughmination System email"
+      : "Confirm your Doughmination System email",
+    html,
+    text,
+  };
+}
+
+/**
+ * Sent to the OLD address when an email change is requested, so that a
+ * takeover attempt is visible to the real owner of the account.
+ */
+export function emailChangeAlertTemplate({
+  displayName,
+  newEmailMasked,
+}: {
+  displayName: string;
+  newEmailMasked: string;
+}): { subject: string; html: string; text: string } {
+  const safeName = escapeHtml(displayName);
+  const safeMasked = escapeHtml(newEmailMasked);
+
+  const text = [
+    `Hi ${displayName},`,
+    "",
+    "Someone requested that the email address on your Doughmination System",
+    `account be changed to ${newEmailMasked}.`,
+    "",
+    "The change does not take effect until that new address is confirmed.",
+    "This address remains on the account until then.",
+    "",
+    "If this wasn't you, your password may be compromised. Change it now and",
+    "contact @doughmination.",
+    "",
+    "— Doughmination System",
+  ].join("\n");
+
+  const html = `<!doctype html>
+<html lang="en">
+<body style="margin:0;padding:24px;background:#1c0f14;font-family:ui-sans-serif,system-ui,sans-serif;color:#f5dde6;">
+  <div style="max-width:520px;margin:0 auto;background:#2b1620;border:1px solid #3d1f2c;border-radius:12px;padding:28px;">
+    <h1 style="margin:0 0 16px;font-size:20px;color:#d9a441;">Email change requested</h1>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Hi ${safeName},</p>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">
+      Someone requested that the email address on your Doughmination System
+      account be changed to <strong>${safeMasked}</strong>.
+    </p>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">
+      The change does not take effect until that new address is confirmed.
+      This address remains on the account until then.
+    </p>
+    <div style="margin:20px 0;padding:14px;background:#1c0f14;border:1px solid #c22a3e;border-radius:8px;">
+      <p style="margin:0;font-size:14px;line-height:1.6;color:#f5dde6;">
+        <strong style="color:#c22a3e;">Wasn't you?</strong> Your password may be
+        compromised. Change it now and contact @doughmination.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return { subject: "Email change requested on your Doughmination System account", html, text };
+}
+
+export function usernameReminderTemplate({
+  username,
+  displayName,
+  loginUrl,
+}: {
+  username: string;
+  displayName: string;
+  loginUrl: string;
+}): { subject: string; html: string; text: string } {
+  const safeName = escapeHtml(displayName);
+  const safeUsername = escapeHtml(username);
+  const safeLogin = escapeHtml(loginUrl);
+
+  const text = [
+    `Hi ${displayName},`,
+    "",
+    "Someone asked us to remind you of the username attached to this",
+    "email address on the Doughmination System.",
+    "",
+    `Your username is: ${username}`,
+    "",
+    `You can log in at ${loginUrl}`,
+    "",
+    "If you did not request this, you can ignore this email — nothing about",
+    "your account has changed.",
+    "",
+    "— Doughmination System",
+  ].join("\n");
+
+  const html = `<!doctype html>
+<html lang="en">
+<body style="margin:0;padding:24px;background:#1c0f14;font-family:ui-sans-serif,system-ui,sans-serif;color:#f5dde6;">
+  <div style="max-width:520px;margin:0 auto;background:#2b1620;border:1px solid #3d1f2c;border-radius:12px;padding:28px;">
+    <h1 style="margin:0 0 16px;font-size:20px;color:#ff5c8a;">Your username</h1>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Hi ${safeName},</p>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">
+      Someone asked us to remind you of the username attached to this email
+      address on the Doughmination System.
+    </p>
+    <p style="margin:20px 0;padding:14px;background:#1c0f14;border:1px solid #3d1f2c;border-radius:8px;text-align:center;font-size:18px;font-weight:600;color:#ff5c8a;">
+      ${safeUsername}
+    </p>
+    <p style="margin:24px 0;text-align:center;">
+      <a href="${safeLogin}" style="display:inline-block;background:#ff5c8a;color:#1c0f14;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:8px;font-size:15px;">Go to login</a>
+    </p>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#c9a8b9;">
+      If you did not request this, you can ignore this email — nothing about
+      your account has changed.
+    </p>
+  </div>
+</body>
+</html>`;
+
+  return { subject: "Your Doughmination System username", html, text };
+}
