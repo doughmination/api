@@ -1,8 +1,8 @@
 # The Estrogen Source-Available Licence
 
-**Version 2.1**
+**Version 2.3**
 
-This Licence may be referred to as the **Estrogen Source-Available Licence (ESAL)**. This specific version may be referred to as **ESAL-2.1**.
+This Licence may be referred to as the **Estrogen Source-Available Licence (ESAL)**. This specific version may be referred to as **ESAL-2.3**.
 
 Copyright © 2026 Clove Nytrix Doughmination Twilight.
 
@@ -76,7 +76,7 @@ If a party is not listed within the official licensing repository or accompanyin
 
 Official licensing records:
 
-https://codeberg.org/clove/licencing
+[https://github.com/doughmination/licencing](https://github.com/doughmination/licencing)
 
 ---
 
