@@ -49,13 +49,65 @@ export function adminUsername(): string {
   return rt().env.ADMIN_USERNAME ?? "admin";
 }
 
-export function adminPassword(): string | undefined {
-  return rt().env.ADMIN_PASSWORD;
-}
-
 export function adminDisplayName(): string {
   return rt().env.ADMIN_DISPLAY_NAME ?? "Administrator";
 }
+
+// ---------------------------------------------------------------------------
+// PocketID (OpenID Connect) — the ONLY login method.
+//
+// The API is a confidential OIDC client: it runs the Authorization Code +
+// PKCE flow against a PocketID instance, then mints its own JWT (see
+// security.ts) so every existing `requireAuth` route keeps working unchanged.
+// ---------------------------------------------------------------------------
+
+/** PocketID issuer origin, e.g. https://doughmination.xyz. No trailing slash.
+ *  `${issuer}/.well-known/openid-configuration` must resolve. */
+export function pocketIdIssuer(): string {
+  return (rt().env.POCKETID_ISSUER ?? "").replace(/\/+$/, "");
+}
+
+/** OIDC client id issued by PocketID for this application. */
+export function pocketIdClientId(): string | undefined {
+  return rt().env.POCKETID_CLIENT_ID;
+}
+
+/** OIDC client secret. Set via `wrangler secret put POCKETID_CLIENT_SECRET`. */
+export function pocketIdClientSecret(): string | undefined {
+  return rt().env.POCKETID_CLIENT_SECRET;
+}
+
+/** The redirect URI registered with PocketID. Must point back at the API's
+ *  callback route. Defaults to `${baseUrl}/v2/plural/auth/pocketid/callback`. */
+export function pocketIdRedirectUri(): string {
+  const configured = rt().env.POCKETID_REDIRECT_URI;
+  if (configured) return configured;
+  return `${baseUrl()}/v2/plural/auth/pocketid/callback`;
+}
+
+/** Space-separated OIDC scopes. `openid` is mandatory; `profile` gives us
+ *  preferred_username + name, `email` gives the address. */
+export function pocketIdScopes(): string {
+  return rt().env.POCKETID_SCOPES ?? "openid profile email";
+}
+
+/** Where the callback sends the browser once a JWT has been minted. The token
+ *  is appended in the URL fragment (`#token=…`) so it never hits a server log.
+ *  Defaults to the frontend's PocketID landing page. */
+export function pocketIdPostLoginUrl(): string {
+  const configured = rt().env.POCKETID_POST_LOGIN_URL;
+  if (configured) return configured.replace(/\/+$/, "");
+  return `${frontendUrl()}/user/login/callback`;
+}
+
+/** Where the browser is sent when login fails or is cancelled. */
+export function pocketIdLoginErrorUrl(): string {
+  return `${frontendUrl()}/user/login`;
+}
+
+/** How long an in-flight authorization request (state + PKCE verifier) stays
+ *  valid between /login and /callback. */
+export const OIDC_STATE_TTL_MINUTES = 10;
 
 /** Owner's email. Backfilled onto the owner account on read, so an owner
  *  created before emails existed still gets one without a manual edit. */
@@ -72,44 +124,6 @@ export function baseUrl(): string {
 export function frontendUrl(): string {
   return (rt().env.FRONTEND_URL ?? baseUrl()).replace(/\/+$/, "");
 }
-
-// ---------------------------------------------------------------------------
-// Email (Resend)
-// ---------------------------------------------------------------------------
-
-export function resendApiKey(): string | undefined {
-  return rt().env.RESEND_API_KEY;
-}
-
-/** Resend API base. Overridable so a fork can point at a self-hosted relay,
- *  and so the flow can be exercised against a local mock in tests. */
-export function resendApiBase(): string {
-  return (rt().env.RESEND_API_BASE ?? "https://api.resend.com").replace(/\/+$/, "");
-}
-
-export function emailFrom(): string {
-  return rt().env.EMAIL_FROM ?? "Doughmination System <no-reply@doughmination.win>";
-}
-
-/** Base URL of the password-reset page. The token is appended as ?token=. */
-export function passwordResetUrl(): string {
-  const configured = rt().env.PASSWORD_RESET_URL;
-  if (configured) return configured.replace(/\/+$/, "");
-  return `${frontendUrl()}/user/reset-password`;
-}
-
-/** Base URL of the email-confirmation page. Token appended as ?token=. */
-export function verificationUrl(): string {
-  const configured = rt().env.EMAIL_VERIFY_URL;
-  if (configured) return configured.replace(/\/+$/, "");
-  return `${frontendUrl()}/user/verify-email`;
-}
-
-/** How long a password-reset token stays valid. */
-export const PASSWORD_RESET_TTL_MINUTES = 15;
-
-/** Unconfirmed signups are deleted once they are older than this. */
-export const UNVERIFIED_ACCOUNT_TTL_HOURS = 24;
 
 /** Any localhost origin, on any port and either scheme — local dev servers
  *  (Vite :5173, Next :3000, wrangler :8787, …) are always allowed. */

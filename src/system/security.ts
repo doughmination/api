@@ -8,16 +8,19 @@
  * Security utilities, rewritten for the Workers runtime (Web Crypto only —
  * no `bcrypt`, `jsonwebtoken`, or `axios`).
  *
- *  - Passwords: PBKDF2-HMAC-SHA-256, stored as `pbkdf2$<iters>$<salt>$<hash>`.
- *    Old bcrypt hashes will NOT verify (expected — set passwords fresh).
- *  - JWT: HS256 signed/verified with SubtleCrypto HMAC.
- *  - Turnstile: verified with `fetch`.
+ *  - JWT: HS256 signed/verified with SubtleCrypto HMAC. This is the token the
+ *    API issues to the browser AFTER a successful PocketID (OIDC) login, so
+ *    every existing bearer-auth route keeps working unchanged.
+ *  - OIDC helpers: cryptographically random state/PKCE-verifier generation and
+ *    the S256 code-challenge digest.
+ *  - Turnstile: verified with `fetch` (still used by the public guestbook).
+ *
+ * Local password hashing has been removed — login is PocketID-only.
  */
 
 import { ACCESS_TOKEN_EXPIRE_MINUTES, jwtSecret, turnstileSecret } from "./config";
 import { HttpError } from "./errors";
 
-const PBKDF2_ITERATIONS = 100_000;
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
@@ -57,48 +60,19 @@ export function constantTimeStringEqual(a: string, b: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Password hashing (PBKDF2)
+// OIDC / PKCE helpers
 // ---------------------------------------------------------------------------
 
-async function pbkdf2(password: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
-  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, [
-    "deriveBits",
-  ]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
-    keyMaterial,
-    256,
-  );
-  return new Uint8Array(bits);
+/** A URL-safe, cryptographically random token — used for OIDC `state` and the
+ *  PKCE code verifier. `bytes` is the amount of entropy, not the string length. */
+export function randomUrlToken(bytes = 32): string {
+  return bytesToB64url(crypto.getRandomValues(new Uint8Array(bytes)));
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const hash = await pbkdf2(password, salt, PBKDF2_ITERATIONS);
-  return `pbkdf2$${PBKDF2_ITERATIONS}$${bytesToB64url(salt)}$${bytesToB64url(hash)}`;
-}
-
-export async function verifyPassword(
-  plainPassword: string,
-  hashedPassword?: string | null,
-): Promise<boolean> {
-  if (!hashedPassword) return false;
-  try {
-    const [scheme, itersStr, saltStr, hashStr] = hashedPassword.split("$");
-    if (scheme !== "pbkdf2") return false;
-    const iterations = Number(itersStr);
-    const salt = b64urlToBytes(saltStr);
-    const expected = b64urlToBytes(hashStr);
-    const actual = await pbkdf2(plainPassword, salt, iterations);
-    return timingSafeEqual(actual, expected);
-  } catch {
-    return false;
-  }
-}
-
-/** True if a stored hash is in a format this module can verify. */
-export function isSupportedHash(hash: string): boolean {
-  return hash.startsWith("pbkdf2$");
+/** The PKCE S256 code challenge: base64url( SHA-256( verifier ) ). */
+export async function sha256Base64Url(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", enc.encode(input));
+  return bytesToB64url(new Uint8Array(digest));
 }
 
 // ---------------------------------------------------------------------------

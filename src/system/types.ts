@@ -28,19 +28,35 @@ export interface SystemEnv {
   CACHE_TTL?: string;
 
   // ---- Auth --------------------------------------------------------------
-  /** HMAC secret for signing JWTs. REQUIRED in production. */
+  /** HMAC secret for signing the JWT the API issues after a PocketID login.
+   *  REQUIRED in production. */
   JWT_SECRET?: string;
-  /** Cloudflare Turnstile secret (login/signup captcha). */
+  /** Cloudflare Turnstile secret (public guestbook captcha). */
   TURNSTILE_SECRET?: string;
   /** Back-compat alias for the original (typo'd) env name. */
   TURNSILE_SECRET?: string;
 
+  // ---- PocketID (OIDC) — the only login method ---------------------------
+  /** Issuer origin, e.g. https://doughmination.xyz (no trailing slash). */
+  POCKETID_ISSUER?: string;
+  /** OIDC client id for this application. */
+  POCKETID_CLIENT_ID?: string;
+  /** OIDC client secret — set with `wrangler secret put POCKETID_CLIENT_SECRET`. */
+  POCKETID_CLIENT_SECRET?: string;
+  /** Registered redirect URI. Defaults to
+   *  `${BASE_URL}/v2/plural/auth/pocketid/callback`. */
+  POCKETID_REDIRECT_URI?: string;
+  /** Space-separated scopes. Defaults to "openid profile email". */
+  POCKETID_SCOPES?: string;
+  /** Frontend page the callback hands the minted JWT to (in the URL fragment).
+   *  Defaults to `${FRONTEND_URL}/user/login/callback`. */
+  POCKETID_POST_LOGIN_URL?: string;
+
   // ---- Initial owner seed (only used when no users exist yet) ------------
   ADMIN_USERNAME?: string;
-  ADMIN_PASSWORD?: string;
   ADMIN_DISPLAY_NAME?: string;
-  /** Owner's email address, used for password recovery. Backfilled onto the
-   *  owner account on read if it doesn't have one yet. */
+  /** Owner's contact email. Backfilled onto the owner account on read if it
+   *  doesn't have one yet. */
   ADMIN_EMAIL?: string;
 
   // ---- Manual API keys (replaces generate-on-first-run) ------------------
@@ -48,21 +64,6 @@ export interface SystemEnv {
   DOUGH_BOT_TOKEN?: string;
   /** Comma-separated device battery-report keys (X-Battery-Key header). */
   BATTERY_API_KEYS?: string;
-
-  // ---- Email (Resend) ----------------------------------------------------
-  /** Resend API key. Without it, password-reset emails cannot be sent. */
-  RESEND_API_KEY?: string;
-  /** Override the Resend API base (self-hosted relay / local testing). */
-  RESEND_API_BASE?: string;
-  /** From address for transactional mail. Must be on a Resend-verified
-   *  domain. Defaults to no-reply@doughmination.win. */
-  EMAIL_FROM?: string;
-  /** Where password-reset links point. Defaults to FRONTEND_URL, then to the
-   *  public site. */
-  PASSWORD_RESET_URL?: string;
-  /** Where email-confirmation links point. Defaults to
-   *  FRONTEND_URL + /user/verify-email. */
-  EMAIL_VERIFY_URL?: string;
 
   // ---- Misc --------------------------------------------------------------
   /** Public base URL, used in a few absolute links. */
