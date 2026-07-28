@@ -253,7 +253,7 @@ export default {
         data: {
           service: "Doughmination API",
           description: "Universal API: live Discord presence + profiles + plural system.",
-          licence: "ESAL-2.1",
+          licence: "DASL-1.0",
           repository_url: "https://github.com/doughmination/api",
           docs: "/docs",
           openapi: "/openapi.json",
