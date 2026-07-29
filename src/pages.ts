@@ -19,16 +19,23 @@ export function pageShell(title: string, subtitle: string, body: string): string
 <link rel="icon" type="image/png" href="/icon.png" />
 <title>${title} — Doughmination API</title>
 <style>
+  /* Comic Code + info dark palette, matching every other app. */
+  @font-face { font-family: "Comic Code";
+    src: url("https://fonts.doughmination.co.uk/ComicCode-Regular_2022-05-24-151938_hsmz.woff2") format("woff2");
+    font-weight: 400; font-style: normal; font-display: swap; }
+  @font-face { font-family: "Comic Code";
+    src: url("https://fonts.doughmination.co.uk/ComicCode-Bold_2022-05-24-152309_zqkm.woff2") format("woff2");
+    font-weight: 700; font-style: normal; font-display: swap; }
   :root {
     color-scheme: dark;
-    --base: #1e1e2e; --mantle: #181825; --surface0: #313244; --surface1: #45475a;
-    --surface2: #585b70; --subtext0: #a6adc8; --subtext1: #bac2de; --text: #cdd6f4;
-    --pink: #f5c2e7; --red: #f38ba8; --green: #a6e3a1; --blue: #89b4fa;
+    --base: #0a0b10; --mantle: #070810; --surface0: #12141c; --surface1: #1b1e2a;
+    --surface2: #232838; --subtext0: #9aa3c2; --subtext1: #c9cfe0; --text: #f4f6fb;
+    --pink: #f5a9b8; --red: #f38ba8; --green: #a6e3a1; --blue: #89b4fa;
     --bg: var(--base); --line: var(--surface2); --fg: var(--text); --muted: var(--subtext0);
-    --mono: ui-monospace, SFMono-Regular, Menlo, monospace; --accent: var(--pink);
+    --mono: "Comic Code", ui-monospace, SFMono-Regular, Menlo, monospace; --accent: var(--pink);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 15px/1.65 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+  body { margin: 0; font: 15px/1.65 "Comic Code", ui-monospace, monospace; background: var(--bg); color: var(--fg); }
   header { padding: 24px 20px 14px; border-bottom: 1px solid var(--line); }
   .inner { max-width: 720px; margin: 0 auto; }
   h1 { margin: 0 0 4px; font-size: 21px; }
@@ -43,7 +50,7 @@ export function pageShell(title: string, subtitle: string, body: string): string
   .card strong { color: var(--fg); }
   footer { max-width: 720px; margin: 0 auto; padding: 8px 20px 28px; font-size: 13px; color: var(--muted); }
   .big { font: 700 64px var(--mono); color: var(--accent); margin: 30px 0 6px; }
-  ::selection { background: rgba(245,194,231,.28); }
+  ::selection { background: rgba(245,169,184,.28); }
 </style>
 </head>
 <body>

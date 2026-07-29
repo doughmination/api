@@ -21,24 +21,35 @@ export const DOCS_HTML = `<!doctype html>
 <link rel="icon" type="image/png" href="/icon.png" />
 <title>Doughmination API reference</title>
 <style>
+  /* Comic Code + info dark palette, matching every other app. */
+  @font-face { font-family: "Comic Code";
+    src: url("https://fonts.doughmination.co.uk/ComicCode-Regular_2022-05-24-151938_hsmz.woff2") format("woff2");
+    font-weight: 400; font-style: normal; font-display: swap; }
+  @font-face { font-family: "Comic Code";
+    src: url("https://fonts.doughmination.co.uk/ComicCode-Medium_2022-05-24-151941_ugqm.woff2") format("woff2");
+    font-weight: 500; font-style: normal; font-display: swap; }
+  @font-face { font-family: "Comic Code";
+    src: url("https://fonts.doughmination.co.uk/ComicCode-Bold_2022-05-24-152309_zqkm.woff2") format("woff2");
+    font-weight: 700; font-style: normal; font-display: swap; }
   :root {
     color-scheme: dark;
 
-    /* Catppuccin Mocha */
-    --base: #1e1e2e;
-    --mantle: #181825;
-    --crust: #11111b;
-    --surface0: #313244;
-    --surface1: #45475a;
-    --surface2: #585b70;
-    --overlay0: #6c7086;
-    --overlay1: #7f849c;
-    --overlay2: #9399b2;
-    --subtext0: #a6adc8;
-    --subtext1: #bac2de;
-    --text: #cdd6f4;
-    --pink: #f5c2e7;
-    --mauve: #cba6f7;
+    /* Info dark palette (was Catppuccin Mocha). */
+    --base: #0a0b10;
+    --mantle: #070810;
+    --crust: #050609;
+    --surface0: #12141c;
+    --surface1: #1b1e2a;
+    --surface2: #232838;
+    --overlay0: #5b6480;
+    --overlay1: #6b7391;
+    --overlay2: #9aa3c2;
+    --subtext0: #9aa3c2;
+    --subtext1: #c9cfe0;
+    --text: #f4f6fb;
+    --pink: #f5a9b8;
+    /* HTTP-method hues kept distinguishable so the badges stay readable. */
+    --mauve: #c9a9f0;
     --red: #f38ba8;
     --peach: #fab387;
     --yellow: #f9e2af;
@@ -53,18 +64,18 @@ export const DOCS_HTML = `<!doctype html>
     --line: var(--surface2);
     --fg: var(--text);
     --muted: var(--subtext0);
-    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --mono: "Comic Code", ui-monospace, SFMono-Regular, Menlo, monospace;
     --accent: var(--pink);
 
     --get: var(--green); --post: var(--yellow); --put: var(--blue); --del: var(--red); --ws: var(--mauve);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; min-width: 0; }
   html { scroll-behavior: smooth; }
-  body { margin: 0; font: 15px/1.6 system-ui, sans-serif; background: var(--bg); color: var(--fg); overflow-x: hidden; }
+  body { margin: 0; font: 15px/1.6 "Comic Code", ui-monospace, monospace; background: var(--bg); color: var(--fg); overflow-x: hidden; }
 
   header {
     padding: 24px 20px 14px; border-bottom: 1px solid var(--line);
-    position: sticky; top: 0; background: linear-gradient(var(--bg), rgba(30,30,46,.94));
+    position: sticky; top: 0; background: linear-gradient(var(--bg), rgba(10,11,16,.94));
     backdrop-filter: blur(6px); z-index: 20;
     display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
   }
@@ -101,7 +112,7 @@ export const DOCS_HTML = `<!doctype html>
     background: var(--surface0); color: var(--fg); font: inherit; margin-bottom: 14px;
   }
   #filter::placeholder { color: var(--overlay1); }
-  #filter:focus { outline: none; border-color: var(--pink); box-shadow: 0 0 0 3px rgba(245,194,231,.18); }
+  #filter:focus { outline: none; border-color: var(--pink); box-shadow: 0 0 0 3px rgba(245,169,184,.18); }
 
   section { margin-bottom: 32px; scroll-margin-top: 116px; }
   section > h2 { font-size: 16.5px; margin: 0 0 3px; color: var(--fg); }
@@ -153,7 +164,7 @@ export const DOCS_HTML = `<!doctype html>
   .hidden { display: none; }
   a.self { color: var(--accent); text-decoration: none; }
 
-  ::selection { background: rgba(245,194,231,.28); color: var(--fg); }
+  ::selection { background: rgba(245,169,184,.28); color: var(--fg); }
 
   /* Scrollbars, for the browsers that respect this */
   * { scrollbar-color: var(--surface2) var(--mantle); scrollbar-width: thin; }

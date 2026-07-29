@@ -87,39 +87,46 @@ const INDEX_HTML = `<!doctype html>
 <meta charset="utf-8" />
 <title>Visitor Log Relay</title>
 <style>
-  :root { color-scheme: dark light; }
-  body { font: 14px/1.4 system-ui, sans-serif; margin: 0; padding: 16px;
-         background: #0e0f12; color: #e6e7eb; }
+  /* Comic Code + info dark palette, matching every other app. */
+  @font-face { font-family: "Comic Code";
+    src: url("https://fonts.doughmination.co.uk/ComicCode-Regular_2022-05-24-151938_hsmz.woff2") format("woff2");
+    font-weight: 400; font-style: normal; font-display: swap; }
+  @font-face { font-family: "Comic Code";
+    src: url("https://fonts.doughmination.co.uk/ComicCode-Bold_2022-05-24-152309_zqkm.woff2") format("woff2");
+    font-weight: 700; font-style: normal; font-display: swap; }
+  :root { color-scheme: dark; }
+  body { font: 14px/1.4 "Comic Code", ui-monospace, monospace; margin: 0; padding: 16px;
+         background: #0a0b10; color: #f4f6fb; }
   h1 { margin: 0 0 8px; font-size: 18px; }
   .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-  .stat { background: #1a1c22; border: 1px solid #272a32; border-radius: 8px;
+  .stat { background: #12141c; border: 1px solid #232838; border-radius: 8px;
           padding: 8px 12px; min-width: 120px; }
   .stat .n { font-size: 22px; font-weight: 600; }
   .stat .l { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.05em; }
   .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
   input, select, button { font: inherit; padding: 6px 10px; border-radius: 6px;
-                          border: 1px solid #2c2f38; background: #1a1c22;
+                          border: 1px solid #232838; background: #12141c;
                           color: inherit; }
   button { cursor: pointer; }
-  button.primary { background: #3a5fcf; border-color: #3a5fcf; }
-  table { width: 100%; border-collapse: collapse; background: #14161b;
-          border: 1px solid #272a32; border-radius: 8px; overflow: hidden; }
-  th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #1f2229;
+  button.primary { background: #f5a9b8; border-color: #f5a9b8; color: #0a0b10; }
+  table { width: 100%; border-collapse: collapse; background: #0e1017;
+          border: 1px solid #232838; border-radius: 8px; overflow: hidden; }
+  th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #1b1e2a;
            font-size: 13px; vertical-align: top; }
-  th { background: #1a1c22; font-weight: 600; }
-  tr:hover { background: #181a20; cursor: pointer; }
-  td.ip { font-family: ui-monospace, monospace; }
-  td.path { font-family: ui-monospace, monospace; max-width: 320px;
+  th { background: #12141c; font-weight: 600; }
+  tr:hover { background: #1b1e2a; cursor: pointer; }
+  td.ip { font-family: "Comic Code", ui-monospace, monospace; }
+  td.path { font-family: "Comic Code", ui-monospace, monospace; max-width: 320px;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .code-2xx { color: #6ee787; }
   .code-3xx { color: #f0c674; }
   .code-4xx, .code-5xx { color: #ff6b6b; }
   .top-paths { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-  .top-paths span { background: #1a1c22; border: 1px solid #272a32;
+  .top-paths span { background: #12141c; border: 1px solid #232838;
                     border-radius: 4px; padding: 2px 6px; font-size: 12px;
-                    font-family: ui-monospace, monospace; }
+                    font-family: "Comic Code", ui-monospace, monospace; }
   details { margin-top: 12px; }
-  pre { background: #1a1c22; border: 1px solid #272a32; padding: 8px;
+  pre { background: #12141c; border: 1px solid #232838; padding: 8px;
         border-radius: 6px; overflow: auto; max-height: 60vh; font-size: 12px; }
   .hint { opacity: 0.6; font-size: 12px; margin-left: auto; }
   .empty { opacity: 0.6; text-align: center; padding: 32px; }
