@@ -61,7 +61,7 @@ function security(auth: EndpointDef["auth"]): JsonObj[] | undefined {
   }
 }
 
-/** "/discord/users?ids=a,b,c" → { path: "/discord/users", query: ["ids"] };
+/** "/guestbook?limit=50&offset=0" → { path: "/guestbook", query: ["limit","offset"] };
  *  ":param" segments become "{param}". */
 function normalizePath(raw: string): { path: string; query: string[]; pathParams: string[] } {
   const [pathPart, queryPart] = raw.split("?");

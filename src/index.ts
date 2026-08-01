@@ -102,14 +102,6 @@ async function fetchPresence(env: Env, id: string): Promise<UnifiedPresence | nu
   return body.presence;
 }
 
-/** Every monitored presence in one Durable Object round-trip (used by the
- *  batch endpoint so N users cost one DO call instead of N). */
-async function fetchAllPresences(env: Env): Promise<Record<string, UnifiedPresence>> {
-  const res = await gatewayStub(env).fetch("https://do/presences");
-  if (!res.ok) return {};
-  return (await res.json()) as Record<string, UnifiedPresence>;
-}
-
 /** Merge REST profile + gateway presence into the unified record shape the
  *  website's presence cards consume (identical to the old /v1/users/:id). */
 function buildRecord(
@@ -391,28 +383,6 @@ export default {
       return json<UnifiedMinecraftHypixel>({ success: true, data });
     }
 
-    // ---- /v2/discord/users  (batch: merged profile + presence) -----------
-    // Full user record (profile + badges + live presence) in one round-trip:
-    // one DO call for all presences, profiles fetched in parallel (KV-cached).
-    if (path === "/v2/discord/users") {
-      const ids = parseIds(url);
-      const bad = validateIds(ids);
-      if (bad) return bad;
-
-      const force = wantsForce(url);
-      const [presences, profiles] = await Promise.all([
-        fetchAllPresences(env),
-        Promise.all(ids.map((id) => getProfile(env, id, ctx, force).catch(() => null))),
-      ]);
-
-      const data: Record<string, UnifiedRecord | null> = {};
-      ids.forEach((id, i) => {
-        const profile = profiles[i];
-        data[id] = profile ? buildRecord(profile, presences[id] ?? null) : null;
-      });
-      return json<Record<string, UnifiedRecord | null>>({ success: true, data });
-    }
-
     // ---- /v2/discord/users/:id  (merged profile + presence) --------------
     // Profile (REST) + presence (gateway) in parallel — the full user record
     // the website's presence cards render from.
@@ -461,31 +431,3 @@ function isInsecure(req: Request, url: URL): boolean {
   return false;
 }
 
-function parseIds(url: URL): string[] {
-  return Array.from(
-    new Set(
-      (url.searchParams.get("ids") || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    ),
-  );
-}
-
-/** Returns an error Response if the id list is invalid, else null. */
-function validateIds(ids: string[]): Response | null {
-  if (!ids.length) {
-    return json(
-      { success: false, error: { code: "missing_ids", message: "Provide ?ids=comma,separated,snowflakes." } },
-      400,
-    );
-  }
-  if (ids.length > 100) {
-    return json({ success: false, error: { code: "too_many_ids", message: "Maximum 100 ids per request." } }, 400);
-  }
-  const bad = ids.find((id) => !ID_RE.test(id));
-  if (bad) {
-    return json({ success: false, error: { code: "invalid_id", message: `Not a Discord snowflake: ${bad}` } }, 400);
-  }
-  return null;
-}
