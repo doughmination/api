@@ -442,7 +442,11 @@ export async function getGenshinRoster(
     nickname: raw.playerInfo.nickname ?? null,
     player_level: raw.playerInfo.level ?? null,
     partial,
-    owned_count: owned.size,
+    // Derived from the filtered `characters` list rather than raw map size —
+    // Enka's showcase data can include a handful of ids (trial/event NPCs,
+    // etc.) that don't survive the playable-character catalog filter, which
+    // would otherwise make this count larger than what's actually visible.
+    owned_count: characters.filter((c) => c.owned).length,
     total_count: characters.length,
     characters,
     updated_at: Date.now(),
