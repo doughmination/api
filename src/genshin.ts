@@ -26,7 +26,11 @@ const CHARACTERS_JSON_URL =
   "https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/characters.json";
 const LOC_JSON_URL = "https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/loc.json";
 const ICON_BASE = "https://enka.network/ui";
-const ENKA_USER_AGENT = `doughmination-genshin-roster/2.0 (+https://doughmination.uk; contact: ${ABUSE_CONTACT})`;
+// Enka's docs explicitly ask for a custom, identifiable User-Agent per
+// integration (not a shared generic one) so they can track/support it —
+// see https://github.com/EnkaNetwork/API-docs. Kept distinct from the
+// Mojang/mc-heads UA used elsewhere in this Worker.
+const ENKA_USER_AGENT = `doughmination-genshin-roster/1.0 (+https://doughmination.uk; contact: ${ABUSE_CONTACT})`;
 
 const CATALOG_TTL_SECONDS = 60 * 60 * 24; // static game data — refresh daily
 const ROSTER_MIN_TTL_SECONDS = 30; // floor under Enka's own ttl, avoids 0/negative
