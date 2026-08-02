@@ -32,6 +32,7 @@ import type {
   UnifiedMinecraftGeneral,
   UnifiedMinecraftHypixel,
   VanillaCapeList,
+  UnifiedGenshinRoster,
 } from "./types";
 import { getProfile } from "./profile";
 import { GatewayManager } from "./gateway";
@@ -39,6 +40,7 @@ import { getGuildInvite } from "./guild";
 import { getGirlsResource, isGirlsIdType } from "./girls";
 import { getMinecraftGeneral, getMinecraftHypixel, getVanillaCapeList, normalizeMcUuid, isAllowedHypixelUuid, MojangUpstreamError } from "./minecraft";
 import { getContributions } from "./contribapi";
+import { getGenshinRoster, EnkaNotFoundError } from "./genshin";
 import { DOCS_HTML } from "./docs";
 import { ABUSE_HTML, ABUSE_CONTACT, securityTxt } from "./abuse";
 import { TERMS_HTML, PRIVACY_HTML, NOT_FOUND_HTML } from "./pages";
@@ -244,7 +246,7 @@ export default {
         success: true,
         data: {
           service: "Doughmination API",
-          description: "Universal API: live Discord presence + profiles + plural system.",
+          description: "Universal API: live Discord presence + profiles + plural system + Genshin roster tracking.",
           licence: "DASL-1.0",
           repository_url: "https://github.com/doughmination/api",
           docs: "/docs",
@@ -383,6 +385,27 @@ export default {
       return json<UnifiedMinecraftHypixel>({ success: true, data });
     }
 
+    // ---- /v2/genshin/roster/:uid  (owned/not-owned + level, via Enka.Network) ----
+    // Stateless passthrough + merge: Enka's live UID data joined against the
+    // (separately, long-) cached character catalog. See ./genshin.ts for the
+    // `partial` caveat (player must enable "Display all your characters").
+    const gs = path.match(/^\/v2\/genshin\/roster\/(\d{1,12})$/);
+    if (gs) {
+      const uid = gs[1];
+      try {
+        const data = await getGenshinRoster(env, uid, ctx, wantsForce(url));
+        return json<UnifiedGenshinRoster>({ success: true, data });
+      } catch (err) {
+        if (err instanceof EnkaNotFoundError) {
+          return json({ success: false, error: { code: "not_found", message: err.message } }, 404);
+        }
+        return json(
+          { success: false, error: { code: "upstream_error", message: (err as Error).message } },
+          502,
+        );
+      }
+    }
+
     // ---- /v2/discord/users/:id  (merged profile + presence) --------------
     // Profile (REST) + presence (gateway) in parallel — the full user record
     // the website's presence cards render from.
@@ -430,4 +453,3 @@ function isInsecure(req: Request, url: URL): boolean {
   if (visitor && /"scheme"\s*:\s*"http"/i.test(visitor)) return true;
   return false;
 }
-

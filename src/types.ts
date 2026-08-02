@@ -542,3 +542,34 @@ export interface ApiEnvelope<T> {
   data?: T;
   error?: { code: string; message: string };
 }
+
+// ---- genshin (/v2/genshin/roster/:uid) -------------------------------------
+
+export interface UnifiedGenshinCharacter {
+  /** Enka/game avatarId, as a string (matches the catalog + API responses). */
+  id: string;
+  name: string;
+  /** Localized element name, e.g. "Pyro", "Cryo". */
+  element: string;
+  /** 4 or 5. */
+  rarity: number;
+  icon_url: string;
+  owned: boolean;
+  /** Character level, or null if not owned. */
+  level: number | null;
+}
+
+export interface UnifiedGenshinRoster {
+  uid: string;
+  nickname: string | null;
+  player_level: number | null;
+  /** True when Enka only returned the player's pinned showcase (<= 8 chars)
+   *  rather than their full roster — i.e. they haven't enabled "Display all
+   *  your characters" on their in-game Character Showcase. `owned`/`level`
+   *  below are then only accurate for the characters they've pinned. */
+  partial: boolean;
+  owned_count: number;
+  total_count: number;
+  characters: UnifiedGenshinCharacter[];
+  updated_at: number;
+}
