@@ -33,6 +33,9 @@ import type {
   UnifiedMinecraftHypixel,
   VanillaCapeList,
   UnifiedGenshinRoster,
+  UnifiedGenshinCharacterDetail,
+  UnifiedGenshinCharacterItems,
+  UnifiedGenshinCharacterConstellations,
 } from "./types";
 import { getProfile } from "./profile";
 import { GatewayManager } from "./gateway";
@@ -40,7 +43,13 @@ import { getGuildInvite } from "./guild";
 import { getGirlsResource, isGirlsIdType } from "./girls";
 import { getMinecraftGeneral, getMinecraftHypixel, getVanillaCapeList, normalizeMcUuid, isAllowedHypixelUuid, MojangUpstreamError } from "./minecraft";
 import { getContributions } from "./contribapi";
-import { getGenshinRoster, EnkaNotFoundError } from "./genshin";
+import {
+  getGenshinRoster,
+  getGenshinCharacterDetail,
+  getGenshinCharacterItems,
+  getGenshinCharacterConstellations,
+  EnkaNotFoundError,
+} from "./genshin";
 import { DOCS_HTML } from "./docs";
 import { ABUSE_HTML, ABUSE_CONTACT, securityTxt } from "./abuse";
 import { TERMS_HTML, PRIVACY_HTML, NOT_FOUND_HTML } from "./pages";
@@ -395,6 +404,55 @@ export default {
       try {
         const data = await getGenshinRoster(env, uid, ctx, wantsForce(url));
         return json<UnifiedGenshinRoster>({ success: true, data });
+      } catch (err) {
+        if (err instanceof EnkaNotFoundError) {
+          return json({ success: false, error: { code: "not_found", message: err.message } }, 404);
+        }
+        return json(
+          { success: false, error: { code: "upstream_error", message: (err as Error).message } },
+          502,
+        );
+      }
+    }
+
+    // ---- /v2/genshin/roster/:uid/:heroId  (single-character detail) ------
+    // Full detail for one character: level, constellation, friendship,
+    // weapon, artifacts. Same cached Enka fetch as the roster route above —
+    // this never costs an extra upstream call within the ttl window.
+    const gsItems = path.match(/^\/v2\/genshin\/roster\/(\d{1,12})\/(\d{1,10})\/items$/);
+    const gsCons = path.match(/^\/v2\/genshin\/roster\/(\d{1,12})\/(\d{1,10})\/constellations$/);
+    const gsHero = path.match(/^\/v2\/genshin\/roster\/(\d{1,12})\/(\d{1,10})$/);
+    if (gsItems || gsCons || gsHero) {
+      const [, uid, heroId] = (gsItems ?? gsCons ?? gsHero)!;
+      try {
+        if (gsItems) {
+          const data = await getGenshinCharacterItems(env, uid, heroId, ctx, wantsForce(url));
+          if (!data) {
+            return json(
+              { success: false, error: { code: "not_found", message: `No playable character with id ${heroId}` } },
+              404,
+            );
+          }
+          return json<UnifiedGenshinCharacterItems>({ success: true, data });
+        }
+        if (gsCons) {
+          const data = await getGenshinCharacterConstellations(env, uid, heroId, ctx, wantsForce(url));
+          if (!data) {
+            return json(
+              { success: false, error: { code: "not_found", message: `No playable character with id ${heroId}` } },
+              404,
+            );
+          }
+          return json<UnifiedGenshinCharacterConstellations>({ success: true, data });
+        }
+        const data = await getGenshinCharacterDetail(env, uid, heroId, ctx, wantsForce(url));
+        if (!data) {
+          return json(
+            { success: false, error: { code: "not_found", message: `No playable character with id ${heroId}` } },
+            404,
+          );
+        }
+        return json<UnifiedGenshinCharacterDetail>({ success: true, data });
       } catch (err) {
         if (err instanceof EnkaNotFoundError) {
           return json({ success: false, error: { code: "not_found", message: err.message } }, 404);

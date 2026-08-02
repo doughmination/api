@@ -573,3 +573,78 @@ export interface UnifiedGenshinRoster {
   characters: UnifiedGenshinCharacter[];
   updated_at: number;
 }
+
+/** One stat line — a weapon's base stat/substat, or an artifact's main/substat. */
+export interface UnifiedGenshinStat {
+  /** e.g. "CRIT Rate", "ATK%", "Elemental Mastery". */
+  name: string;
+  /** Raw value as Enka reports it — already a percentage number (e.g. 46.6)
+   *  for percent stats, not a 0-1 fraction. Pair with `is_percent` to render. */
+  value: number;
+  is_percent: boolean;
+}
+
+export interface UnifiedGenshinWeapon {
+  /** Enka/game itemId, as a string. */
+  id: string;
+  name: string;
+  /** 1-5. */
+  rarity: number;
+  level: number;
+  /** Ascension phase, 0-6. */
+  ascension: number;
+  /** Refinement rank, 1-5. */
+  refinement: number;
+  base_stat: UnifiedGenshinStat | null;
+  sub_stat: UnifiedGenshinStat | null;
+  icon_url: string;
+}
+
+/** Genshin artifact slot, in equip order. */
+export type UnifiedGenshinArtifactSlot =
+  | "flower"
+  | "plume"
+  | "sands"
+  | "goblet"
+  | "circlet";
+
+export interface UnifiedGenshinArtifact {
+  /** Enka/game itemId, as a string. */
+  id: string;
+  name: string;
+  set_name: string;
+  slot: UnifiedGenshinArtifactSlot;
+  /** 1-5. */
+  rarity: number;
+  /** Display level (the "+N" shown in-game), already adjusted for Enka's
+   *  off-by-one raw `level` field. */
+  level: number;
+  main_stat: UnifiedGenshinStat | null;
+  sub_stats: UnifiedGenshinStat[];
+  icon_url: string;
+}
+
+/** GET /v2/genshin/roster/:uid/:heroId */
+export interface UnifiedGenshinCharacterDetail extends UnifiedGenshinCharacter {
+  /** 0-6. 0 if not owned or no constellations unlocked. */
+  constellation: number;
+  /** In-game friendship/fetter level, 1-10. Null if not owned. */
+  friendship: number | null;
+  weapon: UnifiedGenshinWeapon | null;
+  artifacts: UnifiedGenshinArtifact[];
+  updated_at: number;
+}
+
+/** GET /v2/genshin/roster/:uid/:heroId/items */
+export interface UnifiedGenshinCharacterItems {
+  weapon: UnifiedGenshinWeapon | null;
+  artifacts: UnifiedGenshinArtifact[];
+}
+
+/** GET /v2/genshin/roster/:uid/:heroId/constellations */
+export interface UnifiedGenshinCharacterConstellations {
+  constellation: number;
+  /** Raw unlocked talent ids from Enka, in unlock order. Length == constellation. */
+  unlocked_talent_ids: number[];
+  friendship: number | null;
+}
