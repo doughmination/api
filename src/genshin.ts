@@ -377,6 +377,28 @@ function buildArtifact(equip: RawEquip, loc: RawLoc): UnifiedGenshinArtifact | n
   };
 }
 
+/**
+ * Look up one character's ownership + level, with the same fallback the
+ * roster builder uses: prefer the full detailed `avatarInfoList` (only
+ * present if "Display all your characters" is on), else fall back to the
+ * pinned `showAvatarInfoList` (up to 8, level only — no equip/talent/fetter
+ * data, since Enka never returns that for the lightweight showcase list).
+ */
+function findOwnedAvatar(
+  raw: EnkaUidResponse,
+  heroId: string,
+): { owned: false } | { owned: true; level: number; detail: EnkaAvatarInfo | null } {
+  const full = raw.playerInfo.avatarInfoList;
+  if (full && full.length > 0) {
+    const entry = full.find((c) => String(c.avatarId) === heroId);
+    if (!entry) return { owned: false };
+    return { owned: true, level: Number(entry.propMap?.["4001"]?.ival ?? 0), detail: entry };
+  }
+  const shown = (raw.playerInfo.showAvatarInfoList ?? []).find((c) => String(c.avatarId) === heroId);
+  if (!shown) return { owned: false };
+  return { owned: true, level: shown.level, detail: null };
+}
+
 /** Full owned/not-owned roster for a UID, merged against the character catalog.
  *  Cache-first, honoring the `ttl` Enka itself returns for that profile. */
 export async function getGenshinRoster(
@@ -443,7 +465,6 @@ export async function getGenshinCharacterDetail(
   const meta = catalog[heroId];
   if (!meta) return null;
 
-  const entry = (raw.playerInfo.avatarInfoList ?? []).find((c) => String(c.avatarId) === heroId);
   const base = {
     id: heroId,
     name: meta.name,
@@ -453,20 +474,21 @@ export async function getGenshinCharacterDetail(
     updated_at: Date.now(),
   };
 
-  if (!entry) {
+  const found = findOwnedAvatar(raw, heroId);
+  if (!found.owned) {
     return { ...base, owned: false, level: null, constellation: 0, friendship: null, weapon: null, artifacts: [] };
   }
 
-  const level = Number(entry.propMap?.["4001"]?.ival ?? 0);
-  const weaponEquip = entry.equipList?.find((e) => e.weapon);
-  const artifactEquips = (entry.equipList ?? []).filter((e) => e.reliquary);
+  const entry = found.detail;
+  const weaponEquip = entry?.equipList?.find((e) => e.weapon);
+  const artifactEquips = (entry?.equipList ?? []).filter((e) => e.reliquary);
 
   return {
     ...base,
     owned: true,
-    level,
-    constellation: entry.talentIdList?.length ?? 0,
-    friendship: entry.fetterInfo?.expLevel ?? null,
+    level: found.level,
+    constellation: entry?.talentIdList?.length ?? 0,
+    friendship: entry?.fetterInfo?.expLevel ?? null,
     weapon: weaponEquip ? buildWeapon(weaponEquip, loc) : null,
     artifacts: artifactEquips
       .map((e) => buildArtifact(e, loc))
@@ -500,11 +522,13 @@ export async function getGenshinCharacterConstellations(
   const { raw, catalog } = await getUidData(env, uid, ctx, force);
   if (!catalog[heroId]) return null;
 
-  const entry = (raw.playerInfo.avatarInfoList ?? []).find((c) => String(c.avatarId) === heroId);
-  const unlocked = entry?.talentIdList ?? [];
+  const found = findOwnedAvatar(raw, heroId);
+  if (!found.owned) return { constellation: 0, unlocked_talent_ids: [], friendship: null };
+
+  const unlocked = found.detail?.talentIdList ?? [];
   return {
     constellation: unlocked.length,
     unlocked_talent_ids: unlocked,
-    friendship: entry?.fetterInfo?.expLevel ?? null,
+    friendship: found.detail?.fetterInfo?.expLevel ?? null,
   };
 }
