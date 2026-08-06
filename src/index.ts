@@ -52,7 +52,7 @@ import {
 } from "./genshin";
 import { DOCS_HTML } from "./docs";
 import { ABUSE_HTML, ABUSE_CONTACT, securityTxt } from "./abuse";
-import { TERMS_HTML, PRIVACY_HTML, NOT_FOUND_HTML } from "./pages";
+import { LANDING_HTML, TERMS_HTML, PRIVACY_HTML, NOT_FOUND_HTML } from "./pages";
 import { OPENAPI_JSON } from "./openapi";
 import { SystemState } from "./system/do";
 
@@ -251,6 +251,18 @@ export default {
 
     // ---- Service info ----------------------------------------------------
     if (path === "/") {
+      // Browsers and link-preview crawlers get the HTML landing card; API
+      // clients keep the exact JSON they got before. Crawlers don't always
+      // send Accept: text/html, so sniff the common bot user-agents too.
+      const accept = req.headers.get("accept") || "";
+      const userAgent = req.headers.get("user-agent") || "";
+      const wantsHtml =
+        accept.includes("text/html") ||
+        /bot|crawler|embed|discord|twitter|slack|facebookexternalhit|whatsapp|telegram|preview/i.test(
+          userAgent,
+        );
+      if (wantsHtml) return html(LANDING_HTML);
+
       return json({
         success: true,
         data: {

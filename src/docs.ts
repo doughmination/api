@@ -20,6 +20,16 @@ export const DOCS_HTML = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="icon" type="image/png" href="/icon.png" />
 <title>Doughmination API reference</title>
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Doughmination API" />
+<meta property="og:title" content="Doughmination API reference" />
+<meta property="og:description" content="Endpoint reference for the Doughmination API — Discord presence, profiles, plural system and Genshin roster." />
+<meta property="og:image" content="https://m.doughmination.gay/img/avatars/favicon.png" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Doughmination API reference" />
+<meta name="twitter:description" content="Endpoint reference for the Doughmination API — Discord presence, profiles, plural system and Genshin roster." />
+<meta name="twitter:image" content="https://m.doughmination.gay/img/avatars/favicon.png" />
+<meta name="theme-color" content="#f5a9b8" />
 <style>
   /* Comic Code + info dark palette, matching every other app. */
   @font-face { font-family: "Comic Code";

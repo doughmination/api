@@ -9,8 +9,21 @@ import { ABUSE_CONTACT } from "./abuse";
 
 const FOOTER_LINKS = `<a href="/docs">API reference</a> · <a href="/abuse">Abuse</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a>`;
 
-/** Wraps page content in the shared document shell. `body` is trusted HTML. */
-export function pageShell(title: string, subtitle: string, body: string): string {
+const AVATAR = "https://m.doughmination.gay/img/avatars/favicon.png";
+
+const DEFAULT_OG_DESCRIPTION =
+  "Universal API: live Discord presence, profiles, plural system and Genshin roster tracking.";
+
+/**
+ * Wraps page content in the shared document shell. `body` is trusted HTML.
+ * `ogDescription` feeds the link-embed card; defaults to the service tagline.
+ */
+export function pageShell(
+  title: string,
+  subtitle: string,
+  body: string,
+  ogDescription: string = DEFAULT_OG_DESCRIPTION,
+): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -18,6 +31,16 @@ export function pageShell(title: string, subtitle: string, body: string): string
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="icon" type="image/png" href="/icon.png" />
 <title>${title} — Doughmination API</title>
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Doughmination API" />
+<meta property="og:title" content="${title}" />
+<meta property="og:description" content="${ogDescription}" />
+<meta property="og:image" content="${AVATAR}" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="${title}" />
+<meta name="twitter:description" content="${ogDescription}" />
+<meta name="twitter:image" content="${AVATAR}" />
+<meta name="theme-color" content="#f5a9b8" />
 <style>
   /* Comic Code + info dark palette, matching every other app. */
   @font-face { font-family: "Comic Code";
@@ -66,6 +89,32 @@ ${body}
 </html>
 `;
 }
+
+// ---------------------------------------------------------------------------
+// /terms
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// /  (browser / crawler landing — API clients get JSON instead)
+// ---------------------------------------------------------------------------
+
+export const LANDING_HTML = pageShell(
+  "Doughmination API",
+  `Universal API — live Discord presence, profiles, plural system and Genshin roster. <a href="/docs">API reference →</a>`,
+  `
+<div class="card">
+  <strong>Doughmination API</strong> — a universal API for live Discord presence, profiles, the plural system, and Genshin roster tracking.
+</div>
+
+<h2>Start here</h2>
+<ul>
+  <li><a href="/docs">API reference</a></li>
+  <li><a href="/openapi.json">OpenAPI 3.1 spec</a></li>
+  <li><a href="/v2/health">Health check</a></li>
+  <li><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/abuse">Abuse</a></li>
+</ul>
+`,
+);
 
 // ---------------------------------------------------------------------------
 // /terms
