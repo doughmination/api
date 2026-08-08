@@ -141,6 +141,8 @@ export function corsOrigins(): string[] {
     "https://doughmination.co.uk",
     "http://doughmination.gay",
     "https://doughmination.gay",
+    "http://test.doughmination.gay",
+    "https://test.doughmination.gay",
     "http://www.doughmination.gay",
     "https://www.doughmination.gay",
     "https://c.stupid.cat",
