@@ -18,7 +18,7 @@ export const DOCS_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="icon" type="image/png" href="/icon.png" />
+<link rel="icon" type="image/png" href="https://m.doughmination.gay/img/avatars/favicon.png" />
 <title>Doughmination API reference</title>
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Doughmination API" />

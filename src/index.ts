@@ -66,8 +66,8 @@ const CORS = {
 };
 
 // Security headers on every Worker response. HTML pages additionally get a
-// CSP: they're fully self-contained (inline style + script, /icon.png), so
-// everything else is locked down.
+// CSP: they're fully self-contained (inline style + script), with the favicon
+// pulled from m.doughmination.gay, so everything else is locked down.
 const SECURITY_HEADERS = {
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   "X-Content-Type-Options": "nosniff",
@@ -76,7 +76,7 @@ const SECURITY_HEADERS = {
 const HTML_SECURITY_HEADERS = {
   ...SECURITY_HEADERS,
   "Content-Security-Policy":
-    "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' https://m.doughmination.gay; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   "X-Frame-Options": "DENY",
 };
 

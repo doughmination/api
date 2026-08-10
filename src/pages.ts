@@ -29,7 +29,7 @@ export function pageShell(
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="icon" type="image/png" href="/icon.png" />
+<link rel="icon" type="image/png" href="${AVATAR}" />
 <title>${title} — Doughmination API</title>
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Doughmination API" />
