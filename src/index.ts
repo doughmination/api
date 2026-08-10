@@ -43,6 +43,7 @@ import { getGuildInvite } from "./guild";
 import { getGirlsResource, isGirlsIdType } from "./girls";
 import { getMinecraftGeneral, getMinecraftHypixel, getVanillaCapeList, normalizeMcUuid, isAllowedHypixelUuid, MojangUpstreamError } from "./minecraft";
 import { getContributions } from "./contribapi";
+import { purgeAllCache } from "./cloudflare";
 import {
   getGenshinRoster,
   getGenshinCharacterDetail,
@@ -240,6 +241,27 @@ export default {
         } as never,
         ok ? 200 : 503,
       );
+    }
+
+    // ---- /v2/burst  (nuke ALL Cloudflare cache, everywhere) --------------
+    // Lists every zone the CF_API_TOKEN can see (all accounts, including the
+    // one that owns this Worker) and purges everything on each. Returns
+    // {code:"success"} when every zone purged, else {code:"<error>"}.
+    // WARNING: unauthenticated — anyone who loads this URL purges all cache.
+    if (path === "/v2/burst") {
+      let code: string;
+      let ok = false;
+      try {
+        const result = await purgeAllCache(env);
+        ok = result.ok;
+        code = result.ok ? "success" : (result.error ?? "unknown error");
+      } catch (err) {
+        code = (err as Error).message || "unknown error";
+      }
+      return new Response(JSON.stringify({ code }), {
+        status: ok ? 200 : 500,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...CORS, ...SECURITY_HEADERS },
+      });
     }
 
     // ---- Gateway status (debug) ------------------------------------------

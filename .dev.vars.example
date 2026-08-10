@@ -74,3 +74,14 @@ GITHUB_TOKEN=
 # (its sections return null with source "unavailable"); /minecraft/general
 # (Mojang profile + skin) needs no key and always works.
 HYPIXEL_API_KEY=
+
+# ---- /v2/burst — purge ALL Cloudflare cache --------------------------------
+# Cloudflare API token. /v2/burst lists every zone this token can see (across
+# every account it has access to, including the account that owns this Worker)
+# and purges everything on each. Create at My Profile > API Tokens with:
+#   Zone > Zone       : Read
+#   Zone > Cache Purge: Purge
+# Production: `wrangler secret put CF_API_TOKEN`.
+# WARNING: the endpoint is unauthenticated — anyone who loads /v2/burst nukes
+# all cache. Leave blank to disable (route returns code: CF_API_TOKEN ...).
+CF_API_TOKEN=

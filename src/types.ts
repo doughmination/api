@@ -82,6 +82,12 @@ export interface Env {
    *  our own accounts — arbitrary UUIDs are rejected so it can't be used to
    *  proxy the Public API to third parties. Empty = endpoint disabled. */
   MINECRAFT_ALLOWED_UUIDS?: string;
+
+  // ---- /v2/burst  (purge ALL Cloudflare cache) ---------------------------
+  /** Cloudflare API token used by /v2/burst to purge every zone's cache
+   *  across every account the token can access. Needs Zone:Read + Cache
+   *  Purge. Set as a secret: `wrangler secret put CF_API_TOKEN`. */
+  CF_API_TOKEN?: string;
 }
 
 export type DiscordStatus = "online" | "idle" | "dnd" | "offline";
