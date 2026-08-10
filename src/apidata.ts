@@ -269,6 +269,15 @@ export const GROUPS: GroupDef[] = [
     ],
   },
   {
+    id: "ops", name: "Ops — cache", blurb: "Operational endpoints. Handle with care.",
+    endpoints: [
+      { m: "GET", path: "/burst", auth: "public",
+        desc: "Purges EVERYTHING from Cloudflare's cache across every zone the configured API token can see — all accounts the token has access to, including the one that owns this Worker. Loads over a plain GET so it can be fired from a browser. Responds { \"code\": \"success\" } once every zone has been purged, or { \"code\": \"<error>\" } with the first zone that failed. Requires the CF_API_TOKEN secret (a token with Zone:Read + Cache Purge); without it the response is { \"code\": \"CF_API_TOKEN is not configured\" } and nothing is purged.",
+        note: "UNAUTHENTICATED and destructive: anyone who loads this URL wipes all cached content for every zone the token can reach. Its response is a bare { code } object, NOT the usual { success, data } envelope.",
+        example: 'GET /burst  →  { "code": "success" }   (on failure e.g. { "code": "example.com: HTTP 403" })' },
+    ],
+  },
+  {
     id: "meta", name: "Meta", blurb: "Service info, health, docs, and legal pages.",
     endpoints: [
       { m: "GET", path: "/", auth: "public", desc: "Service info (JSON) — the namespace map, plus docs/health/abuse/terms/privacy links.", root: true },
