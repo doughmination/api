@@ -324,13 +324,21 @@ async function buildWishlist(
   const ids = Object.keys(settings).filter((k) => /^\d{16,21}$/.test(k));
   if (!ids.length) return [];
 
+  // Independent per-wishlist fetches — run them in parallel rather than
+  // waterfalling, since each one can itself retry across tokens/versions.
+  const fetched = await Promise.all(
+    ids.map(async (wid) => {
+      const s = settings[wid] || {};
+      const visibility = typeof s.visibility === "number" ? s.visibility : null;
+      const updated_at = typeof s.updated_at === "string" ? s.updated_at : null;
+      const { ok, items } = await getWishlistItems(env, wid, ctx, force);
+      return { ok, visibility, updated_at, items };
+    })
+  );
+
   let anyOk = false;
   const out: UnifiedWishlistItem[] = [];
-  for (const wid of ids) {
-    const s = settings[wid] || {};
-    const visibility = typeof s.visibility === "number" ? s.visibility : null;
-    const updated_at = typeof s.updated_at === "string" ? s.updated_at : null;
-    const { ok, items } = await getWishlistItems(env, wid, ctx, force);
+  for (const { ok, visibility, updated_at, items } of fetched) {
     if (!ok) continue;
     anyOk = true;
     for (const core of items) out.push({ ...core, visibility, updated_at });
@@ -514,37 +522,40 @@ async function buildCollectibles(
   const sources = gatherCollectibleSources(profile);
   if (!sources.length) return [];
 
-  const out: UnifiedCollectible[] = [];
-  for (const src of sources) {
-    const { slot, sku_id: skuId } = src;
-    const product = await getCollectibleProduct(env, skuId, ctx, force);
-    const item = pickCollectibleItem(product, slot);
+  // Independent per-SKU lookups — run them in parallel rather than
+  // waterfalling, since each one can itself retry across tokens/versions.
+  const out = await Promise.all(
+    sources.map(async (src) => {
+      const { slot, sku_id: skuId } = src;
+      const product = await getCollectibleProduct(env, skuId, ctx, force);
+      const item = pickCollectibleItem(product, slot);
 
-    const typeId =
-      typeof item?.type === "number"
-        ? item.type
-        : typeof product?.type === "number"
-        ? product.type
-        : null;
-    let kind = collectibleTypeName(typeId);
-    if (kind === "unknown") kind = collectibleSlotType(slot);
+      const typeId =
+        typeof item?.type === "number"
+          ? item.type
+          : typeof product?.type === "number"
+          ? product.type
+          : null;
+      let kind = collectibleTypeName(typeId);
+      if (kind === "unknown") kind = collectibleSlotType(slot);
 
-    const images = collectibleImages(item, slot, src.asset);
+      const images = collectibleImages(item, slot, src.asset);
 
-    out.push({
-      slot,
-      sku_id: skuId,
-      type: kind,
-      type_id: typeId,
-      name: product?.name ?? item?.title ?? null,
-      summary: product?.summary ?? item?.description ?? null,
-      label: src.label ?? item?.label ?? item?.accessibilityLabel ?? null,
-      ...images,
-      palette:
-        src.palette ?? (typeof item?.palette === "string" ? item.palette : null),
-      expires_at: src.expires_at ?? null,
-    });
-  }
+      return {
+        slot,
+        sku_id: skuId,
+        type: kind,
+        type_id: typeId,
+        name: product?.name ?? item?.title ?? null,
+        summary: product?.summary ?? item?.description ?? null,
+        label: src.label ?? item?.label ?? item?.accessibilityLabel ?? null,
+        ...images,
+        palette:
+          src.palette ?? (typeof item?.palette === "string" ? item.palette : null),
+        expires_at: src.expires_at ?? null,
+      };
+    })
+  );
   return out;
 }
 
