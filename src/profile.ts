@@ -20,7 +20,7 @@ import type {
   UnifiedUser,
   UnifiedWishlistItem,
 } from "./types";
-import { getClientBadges } from "./discord/clientBadges";
+// import { getClientBadges } from "./discord/clientBadges"; // badges.equicord.org is down — disabled below
 import {
   avatarDecorationImageUrl,
   avatarUrl,
@@ -616,11 +616,9 @@ async function buildFreshProfile(
   force = false
 ): Promise<BuildResult> {
   // Rich path first (unless we're cooling down from a 429); fall back to bot.
-  const _t0 = Date.now();
   const rich = tryRich
     ? await fetchUserProfile(env, id)
     : { data: null, status: 0, retryAfter: 0 };
-  console.log(`[timing] fetchUserProfile: ${Date.now() - _t0}ms (status=${rich.status})`);
   const richStatus = rich.status;
   const retryAfter = rich.retryAfter;
   const profile = rich.data;
@@ -668,19 +666,15 @@ async function buildFreshProfile(
 
     // Fetch everything that doesn't depend on the profile body in parallel.
     // Wishlist + equipped collectibles need the profile, so they run alongside.
-    const _timed = <T,>(label: string, p: Promise<T>): Promise<T> => {
-      const start = Date.now();
-      return p.finally(() => console.log(`[timing] ${label}: ${Date.now() - start}ms`));
-    };
     const [wishlist, collectibles, clientBadges, memberships, pronoundb, timezone, reviews] =
       await Promise.all([
-        _timed("buildWishlist", buildWishlist(env, profile, ctx, force)),
-        _timed("buildCollectibles", buildCollectibles(env, profile, ctx, force)),
-        _timed("getClientBadges", getClientBadges(env, id, ctx, force)),
-        _timed("getMemberships", getMemberships(env, id, ctx, force).catch(() => null)),
-        _timed("getPronouns", getPronouns(env, id, ctx, force).catch(() => null)),
-        _timed("getTimezone", getTimezone(env, id, ctx, force).catch(() => null)),
-        _timed("getReviews", getReviews(env, id, ctx, force).catch(() => null)),
+        buildWishlist(env, profile, ctx, force),
+        buildCollectibles(env, profile, ctx, force),
+        Promise.resolve(null), // clientBadges disabled — badges.equicord.org is down
+        getMemberships(env, id, ctx, force).catch(() => null),
+        getPronouns(env, id, ctx, force).catch(() => null),
+        getTimezone(env, id, ctx, force).catch(() => null),
+        getReviews(env, id, ctx, force).catch(() => null),
       ]);
 
     return {
@@ -713,7 +707,7 @@ async function buildFreshProfile(
   if (!u) return { result: null, richStatus, retryAfter };
   const [collectibles, clientBadges, memberships, pronoundb, timezone, reviews] = await Promise.all([
     buildCollectibles(env, { user: u }, ctx, force).catch(() => null),
-    getClientBadges(env, id, ctx, force),
+    Promise.resolve(null), // clientBadges disabled — badges.equicord.org is down
     getMemberships(env, id, ctx, force).catch(() => null),
     getPronouns(env, id, ctx, force).catch(() => null),
     getTimezone(env, id, ctx, force).catch(() => null),

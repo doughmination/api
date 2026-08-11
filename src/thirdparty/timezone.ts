@@ -106,6 +106,7 @@ export async function getTimezone(
     try {
       const res = await fetch(`${apiBase(env)}/get?id=${id}`, {
         headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(5000),
       });
       if (res.status === 404) zone = null;
       else if (!res.ok) zone = undefined;

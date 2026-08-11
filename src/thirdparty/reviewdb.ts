@@ -84,6 +84,7 @@ export async function getReviews(
   try {
     const res = await fetch(`${apiBase(env)}/users/${id}/reviews`, {
       headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(5000),
     });
     if (res.status === 404) result = { count: 0, reviews: [] };
     else if (!res.ok) result = undefined;

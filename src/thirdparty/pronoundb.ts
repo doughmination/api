@@ -61,6 +61,7 @@ export async function getPronouns(
   try {
     const res = await fetch(`${apiBase(env)}/api/v2/lookup?platform=discord&ids=${id}`, {
       headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(5000),
     });
     if (res.status === 404) value = null;
     else if (!res.ok) value = undefined;

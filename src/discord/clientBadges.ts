@@ -77,7 +77,7 @@ export async function getClientBadges(
 async function fetchClientBadges(id: string): Promise<UnifiedClientBadge[] | undefined> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/${id}`);
+    res = await fetch(`${API_BASE}/${id}`, { signal: AbortSignal.timeout(5000) });
   } catch {
     return undefined;
   }
