@@ -9,7 +9,7 @@
  *
  *  - Holds all persistent state (users, tags, statuses, battery, mental
  *    state) in DO key-value storage via a small Store adapter.
- *  - Owns the visitor-log SQLite table (DO embedded SQLite).
+ *  - Owns the visit-counter SQLite tables (DO embedded SQLite).
  *  - Is the SINGLE realtime WebSocket hub for the whole API, at /v2/ws,
  *    using the hibernatable WebSocket API so idle sockets don't keep the DO
  *    billed/awake. Every live update — presence, fronting, mental state,

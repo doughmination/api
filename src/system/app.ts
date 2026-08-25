@@ -12,7 +12,7 @@
  *                         admin, member status, bot, SEO (robots/sitemap)
  *   /v2/devices/*       — device state (battery, etc.)  (misc)
  *   /v2/guestbook/*     — public guestbook (post/list/delete)  (misc)
- *   /v2/system-data/*   — visitor logging + log viewer (misc)
+ *   /v2/counter/*       — per-site visit counters (misc)
  *
  * The single realtime socket /v2/ws is handled by the DO before the request
  * ever reaches this app (see do.ts).
@@ -39,7 +39,7 @@ import { botRoutes } from "./routes/bot";
 import { staticRoutes } from "./routes/static";
 import { deviceRoutes } from "./routes/devices";
 import { guestbookRoutes } from "./routes/guestbook";
-import { systemDataRoutes } from "./routes/system_data";
+import { counterRoutes } from "./routes/counter";
 
 // One-time owner seed per DO lifetime (there is no startup phase on a Worker).
 let seeded = false;
@@ -76,8 +76,14 @@ export const systemApp = new Hono<Env>();
 systemApp.use(
   "*",
   cors({
-    origin: (origin) =>
-      isLocalhostOrigin(origin) || corsOrigins().includes(origin) ? origin : "",
+    // /v2/counter is meant to be called from whatever site owns the :siteId,
+    // so it echoes any origin. Everything else stays on the allow-list.
+    origin: (origin, c) =>
+      c.req.path.startsWith("/v2/counter") ||
+      isLocalhostOrigin(origin) ||
+      corsOrigins().includes(origin)
+        ? origin
+        : "",
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   }),
@@ -102,6 +108,6 @@ systemApp.onError((err, c) => {
 systemApp.route("/v2/plural", pluralApp);
 systemApp.route("/v2/devices", deviceRoutes);
 systemApp.route("/v2/guestbook", guestbookRoutes);
-systemApp.route("/v2/system-data", systemDataRoutes);
+systemApp.route("/v2/counter", counterRoutes);
 
 systemApp.notFound((c) => c.json({ detail: "Unknown route." }, 404));

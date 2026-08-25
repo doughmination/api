@@ -83,6 +83,11 @@
 		"BASE_URL": "https://doughmination.uk",
 		"CORS_ORIGINS": "",
 
+		// Site ids /v2/counter will accept. Empty leaves the counter open, so
+		// any well-formed id registers itself on its first hit (capped at
+		// MAX_SITES). Set it to lock the counter to a known list of sites.
+		"COUNTER_SITE_IDS": "is.doughmination.gay",
+
 		// The frontend lives on doughmination.co.uk; this API is
 		// doughmination.uk — so this must NOT inherit BASE_URL.
 		"FRONTEND_URL": "https://doughmination.co.uk",

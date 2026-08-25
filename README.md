@@ -15,7 +15,7 @@ This code wasn't just me. It took a good chunk of my own brain plus a lot of hel
 Two Durable Objects behind the Worker router (`src/index.ts`):
 
 - **GATEWAY** (`GatewayManager`) — holds the single Discord gateway socket, ingests presences from `READY` / `GUILD_CREATE` / `PRESENCE_UPDATE`, and keeps an in-memory `userId → presence` map. It doesn't serve browser sockets; it relays each live presence change to the SYSTEM DO for fan-out.
-- **SYSTEM** (`SystemState`) — all persistent state (users, tags, statuses, mental state, devices) in DO storage, the visitor-log SQLite table, and the single realtime WebSocket hub.
+- **SYSTEM** (`SystemState`) — all persistent state (users, tags, statuses, mental state, devices) in DO storage, the visit-counter SQLite tables, and the single realtime WebSocket hub.
 
 A cron trigger (`*/2 * * * *`) keeps the gateway DO connected. Static assets under `assets/` are served at the site root (`/icon.png`, `/capes/*`, …).
 
@@ -31,7 +31,7 @@ Full, filterable reference at [`/docs`](https://doughmination.uk/docs). The map:
 | `/v2/discord/guilds/:invite`, `/v2/discord/girls/:idType/:id` | Guild info from an invite; role/member lookups |
 | `/v2/minecraft/general/:uuid`, `/v2/minecraft/hypixel/:uuid`, `/v2/minecraft/capes` | Mojang identity + skins/capes, Hypixel stats, vanilla cape catalogue |
 | `/v2/contribapi` | Merged git contribution heatmaps (GitHub + Codeberg) |
-| `/v2/plural/*`, `/v2/devices/*`, `/v2/guestbook/*`, `/v2/system-data/*` | The plural-system API: fronting, members, mental state, devices/battery, guestbook, visitor logs |
+| `/v2/plural/*`, `/v2/devices/*`, `/v2/guestbook/*`, `/v2/counter/*` | The plural-system API: fronting, members, mental state, devices/battery, guestbook, site visit counters |
 | `/v2/health` | Liveness: gateway connection + DO reachability (200 ok / 503 degraded) — point uptime monitors here |
 | `/docs`, `/openapi.json` | Full HTML API reference + machine-readable OpenAPI 3.1 spec (both generated from `src/apidata.ts`) |
 | `/abuse`, `/terms`, `/privacy`, `/.well-known/security.txt` | Abuse reports, terms of service, privacy, vulnerability disclosure |
@@ -136,7 +136,7 @@ bun decode "X-Super-Properties: [BASE64 HERE]"
 ## Abuse, privacy & security
 
 - **Terms:** [`/terms`](https://doughmination.uk/terms) — the short version: be reasonable with request volume or your IP gets blocked.
-- **Privacy:** [`/privacy`](https://doughmination.uk/privacy) — what's logged (visitor IPs, guestbook entries, brief Discord/Minecraft caches) and how to get it removed.
+- **Privacy:** [`/privacy`](https://doughmination.uk/privacy) — what's stored (guestbook entries, anonymous visit counts, brief Discord/Minecraft caches) and how to get it removed.
 - **Report abuse / request data removal:** [`/abuse`](https://doughmination.uk/abuse) or email **abuse@doughmination.win**.
 - **Opt out of presence tracking:** leave the Discord server(s) the bot is in, or email with your Discord user ID to be blocked from lookups.
 - **Vulnerability disclosure:** email the address above; machine-readable contact at [`/.well-known/security.txt`](https://doughmination.uk/.well-known/security.txt). Responsible disclosure appreciated.

@@ -10,7 +10,7 @@
  *   /v2/plural/*      — Doughmination system API   (SystemState DO)
  *   /v2/devices/*     — device state (battery, etc.) (SystemState DO)
  *   /v2/guestbook/*   — public guestbook            (SystemState DO)
- *   /v2/system-data/* — visitor logs + viewer      (SystemState DO)
+ *   /v2/counter/*     — per-site visit counters    (SystemState DO)
  *   /abuse, /terms, /privacy, /.well-known/security.txt — contact & legal pages
  *   /docs, /openapi.json — API reference (HTML + OpenAPI 3.1)
  *   /v2/health        — liveness for uptime monitors
@@ -149,8 +149,8 @@ function isSystemPath(path: string): boolean {
     path.startsWith("/v2/devices/") ||
     path === "/v2/guestbook" ||
     path.startsWith("/v2/guestbook/") ||
-    path === "/v2/system-data" ||
-    path.startsWith("/v2/system-data/")
+    path === "/v2/counter" ||
+    path.startsWith("/v2/counter/")
   );
 }
 
@@ -187,7 +187,7 @@ export default {
 
     const path = url.pathname.replace(/\/+$/, "") || "/";
 
-    // ---- SystemState DO (plural / devices / system-data / realtime) ------
+    // ---- SystemState DO (plural / devices / counter / realtime) ----------
     // Forwarded first, and untouched, so its Hono CORS + the single realtime
     // WebSocket upgrade (/v2/ws) work end-to-end.
     if (isSystemPath(path)) {

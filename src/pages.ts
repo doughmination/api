@@ -156,12 +156,12 @@ export const PRIVACY_HTML = pageShell(
   `What this service stores, why, and how to get it removed. <a href="/docs">← API reference</a>`,
   `
 <div class="card">
-  <strong>tl;dr:</strong> no ads, no analytics, no selling anything. Visit logs (IP + path) are kept for abuse monitoring, guestbook posts are public, and Discord/Minecraft data is cached briefly. Email <a href="mailto:${ABUSE_CONTACT}">${ABUSE_CONTACT}</a> to have anything about you removed.
+  <strong>tl;dr:</strong> no ads, no analytics, no selling anything. Visit counters are anonymous totals only, guestbook posts are public, and Discord/Minecraft data is cached briefly. Email <a href="mailto:${ABUSE_CONTACT}">${ABUSE_CONTACT}</a> to have anything about you removed.
 </div>
 
 <h2>What's collected</h2>
 <ul>
-  <li><strong>Visit logs.</strong> Requests logged via the site frontend record IP address, request path, user agent, and timestamp. They exist purely for security and abuse monitoring (spotting floods and probes) and are visible only to the admin. They are not shared with anyone and are cleared periodically.</li>
+  <li><strong>Visit counters.</strong> Pages that show a visitor count call <code>/v2/counter/&lt;site&gt;</code>. Nothing identifying is stored: your IP and user agent are hashed together with a per-site secret salt into an opaque value that can't be reversed or matched across sites, and only that hash, a running total and a per-day tally are kept. No IP addresses, headers, cookies or request paths are written down.</li>
   <li><strong>Guestbook entries.</strong> Name, message, and optional website are public by design. The submitting IP is used transiently for rate limiting (one post per 60 seconds) and spam protection (Cloudflare Turnstile).</li>
   <li><strong>Discord presence & profiles.</strong> The API tracks live presence only for users who share a Discord server with its bot. Presence is held in memory only and never written to storage. Profile data (avatar, badges, connections) is fetched live from Discord on each request and not stored.</li>
   <li><strong>Minecraft & Hypixel data.</strong> Public data fetched from Mojang/Hypixel on request, cached for about 5 minutes. The vanilla-cape catalogue keeps cape textures (not player identities) permanently.</li>

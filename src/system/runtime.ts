@@ -28,7 +28,7 @@ export interface Store {
 export interface SysRuntime {
   env: SystemEnv;
   store: Store;
-  /** DO SQLite handle, used by the visitor logger. */
+  /** DO SQLite handle, used by the site visit counters. */
   sql: SqlStorage;
   /** Broadcast a JSON-serialisable payload to every connected /ws client. */
   broadcast(data: unknown): void;

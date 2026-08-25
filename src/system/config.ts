@@ -131,6 +131,15 @@ export function isLocalhostOrigin(origin: string): boolean {
   return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
 }
 
+/** Site ids the visit counter (/v2/counter) will accept. Empty means open:
+ *  any well-formed id auto-registers on its first hit, up to MAX_SITES. */
+export function counterSiteIds(): string[] {
+  return (rt().env.COUNTER_SITE_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 /** CORS allow-list: built-in defaults plus anything in CORS_ORIGINS.
  *  Localhost origins are additionally allowed via isLocalhostOrigin(). */
 export function corsOrigins(): string[] {
@@ -145,6 +154,8 @@ export function corsOrigins(): string[] {
     "https://vibecoded.doughmination.gay",
     "http://www.doughmination.gay",
     "https://www.doughmination.gay",
+    "http://is.doughmination.gay",
+    "https://is.doughmination.gay",
     "https://c.stupid.cat",
     "http://c.stupid.cat"
   ];

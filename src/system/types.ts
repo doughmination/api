@@ -72,6 +72,9 @@ export interface SystemEnv {
   FRONTEND_URL?: string;
   /** Comma-separated extra CORS origins (added to the built-in defaults). */
   CORS_ORIGINS?: string;
+  /** Comma-separated site ids the /v2/counter endpoints will accept. Empty
+   *  leaves the counter open, so any well-formed id registers on first hit. */
+  COUNTER_SITE_IDS?: string;
 }
 
 /** A member object from PluralKit is large and loosely typed upstream. */

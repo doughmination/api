@@ -21,7 +21,7 @@ DISCORD_USER_TOKEN2=
 DISCORD_USER_TOKEN3=
 
 # =====================================================================
-# Doughmination system API (/v2/plural, /v2/battery, /v2/system-data)
+# Doughmination system API (/v2/plural, /v2/battery, /v2/counter)
 # =====================================================================
 
 # PluralKit system token (Authorization header for api.pluralkit.me).
