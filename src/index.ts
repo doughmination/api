@@ -30,7 +30,6 @@ import type {
   UnifiedGirlsRole,
   UnifiedGirlsMember,
   UnifiedMinecraftGeneral,
-  UnifiedMinecraftHypixel,
   VanillaCapeList,
   UnifiedGenshinRoster,
   UnifiedGenshinCharacterDetail,
@@ -41,7 +40,7 @@ import { getProfile } from "./profile";
 import { GatewayManager } from "./gateway";
 import { getGuildInvite } from "./guild";
 import { getGirlsResource, isGirlsIdType } from "./girls";
-import { getMinecraftGeneral, getMinecraftHypixel, getVanillaCapeList, normalizeMcUuid, isAllowedHypixelUuid, MojangUpstreamError } from "./minecraft";
+import { getMinecraftGeneral, getVanillaCapeList, normalizeMcUuid, MojangUpstreamError } from "./minecraft";
 import { getContributions } from "./contribapi";
 import { purgeAllCache } from "./cloudflare";
 import {
@@ -371,8 +370,7 @@ export default {
     }
 
     // ---- /v2/minecraft/general/:uuid  (Mojang profile + skin) ------------
-    // Just Mojang identity + skin/cape, so callers that only want a skin
-    // don't trigger the Hypixel round-trips.
+    // Mojang identity + skin/cape textures + aggregated cape providers.
     const mcg = path.match(/^\/v2\/minecraft\/general\/(.+)$/);
     if (mcg) {
       const short = normalizeMcUuid(safeDecode(mcg[1]));
@@ -397,35 +395,6 @@ export default {
         }
         throw err;
       }
-    }
-
-    // ---- /v2/minecraft/hypixel/:uuid  (Hypixel + SkyBlock) ---------------
-    // Only fetched when asked for. Returns 200 even when the player never
-    // joined Hypixel — `source` says why each section is null.
-    //
-    // Hypixel API policy compliance:
-    //   - Allowlist: only owner-owned UUIDs (MINECRAFT_ALLOWED_UUIDS) are
-    //     served, so this can't be used to proxy the Public API to third
-    //     parties. An empty allowlist disables the endpoint (403).
-    //   - No force-refresh: ?fresh/?nocache/?refresh are ignored here so the
-    //     public can't bust the 5-min cache and hammer the upstream key.
-    const mch = path.match(/^\/v2\/minecraft\/hypixel\/(.+)$/);
-    if (mch) {
-      const short = normalizeMcUuid(safeDecode(mch[1]));
-      if (!short) {
-        return json(
-          { success: false, error: { code: "invalid_uuid", message: "Not a Minecraft UUID (dashed, undashed, or NBT int-array form)." } },
-          400,
-        );
-      }
-      if (!isAllowedHypixelUuid(env, short)) {
-        return json(
-          { success: false, error: { code: "forbidden", message: "This endpoint only serves the operator's own Minecraft accounts." } },
-          403,
-        );
-      }
-      const data = await getMinecraftHypixel(env, short, ctx, false);
-      return json<UnifiedMinecraftHypixel>({ success: true, data });
     }
 
     // ---- /v2/genshin/roster/:uid  (owned/not-owned + level, via Enka.Network) ----

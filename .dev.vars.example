@@ -68,13 +68,6 @@ CODEBERG_USERNAME=
 GITHUB_USERNAME=
 GITHUB_TOKEN=
 
-# ---- minecraft (/v2/minecraft/:uuid) ---------------------------------------
-# Hypixel API key, sent as the `API-Key` header. Generate one at
-# https://developer.hypixel.net/. Leave blank to disable /minecraft/hypixel
-# (its sections return null with source "unavailable"); /minecraft/general
-# (Mojang profile + skin) needs no key and always works.
-HYPIXEL_API_KEY=
-
 # ---- /v2/burst — purge ALL Cloudflare cache --------------------------------
 # Cloudflare API token. /v2/burst lists every zone this token can see (across
 # every account it has access to, including the account that owns this Worker)

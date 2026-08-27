@@ -1,6 +1,6 @@
 # Doughmination API
 
-A combined Discord **presence** (Lanyard-style) and **profile/badges** (dstn.to-style) API on a **single Cloudflare Worker + Durable Objects**, powered by **one Discord bot**. It also carries the Doughmination plural-system API (fronting, members, mental state, devices, guestbook), Minecraft/Hypixel lookups, and merged git contribution heatmaps. Everything returns one unified JSON envelope, and all live updates go over a single WebSocket.
+A combined Discord **presence** (Lanyard-style) and **profile/badges** (dstn.to-style) API on a **single Cloudflare Worker + Durable Objects**, powered by **one Discord bot**. It also carries the Doughmination plural-system API (fronting, members, mental state, devices, guestbook), Minecraft lookups, and merged git contribution heatmaps. Everything returns one unified JSON envelope, and all live updates go over a single WebSocket.
 
 - **Live:** https://doughmination.uk · **Docs:** [`/docs`](https://doughmination.uk/docs) · **Abuse & contact:** [`/abuse`](https://doughmination.uk/abuse)
 - **Stack:** Cloudflare Workers, Durable Objects, KV, Hono, Zod, TypeScript, Bun
@@ -29,7 +29,7 @@ Full, filterable reference at [`/docs`](https://doughmination.uk/docs). The map:
 | `/v2/lanyard/users`, `/v2/lanyard/users/:id`, `/v2/lanyard/status` | REST presence (single, batch up to 100, gateway health) |
 | `/v2/discord/users/:id`, `/v2/discord/users?ids=…` | Full profile + badges + live presence, single or batch |
 | `/v2/discord/guilds/:invite`, `/v2/discord/girls/:idType/:id` | Guild info from an invite; role/member lookups |
-| `/v2/minecraft/general/:uuid`, `/v2/minecraft/hypixel/:uuid`, `/v2/minecraft/capes` | Mojang identity + skins/capes, Hypixel stats, vanilla cape catalogue |
+| `/v2/minecraft/general/:uuid`, `/v2/minecraft/capes` | Mojang identity + skins/capes, vanilla cape catalogue |
 | `/v2/contribapi` | Merged git contribution heatmaps (GitHub + Codeberg) |
 | `/v2/plural/*`, `/v2/devices/*`, `/v2/guestbook/*`, `/v2/counter/*` | The plural-system API: fronting, members, mental state, devices/battery, guestbook, site visit counters |
 | `/v2/health` | Liveness: gateway connection + DO reachability (200 ok / 503 degraded) — point uptime monitors here |
@@ -72,7 +72,7 @@ See the notes in each source file; the short version:
 | Guild invites | KV | **300s** |
 | Guild memberships | KV | **6h** |
 | Client-mod badges (Equicord) | KV | **1h**, stale fallback |
-| Minecraft general + Hypixel | KV | **5min**; vanilla-cape registry kept permanently |
+| Minecraft general | KV | **5min**; vanilla-cape registry kept permanently |
 
 HTTP `Cache-Control`: JSON API responses are `no-store` (never edge/browser cached). HTML pages (`/docs`, `/abuse`, `/terms`, `/privacy`), `/openapi.json`, and `/v2/contribapi` are `public, max-age=3600`. All responses carry security headers (HSTS, nosniff; CSP + frame-deny on HTML).
 

@@ -40,9 +40,6 @@ export interface Env {
   GITHUB_TOKEN?: string;
   CODEBERG_USERNAME?: string;
 
-  HYPIXEL_API_KEY?: string;
-  MINECRAFT_ALLOWED_UUIDS?: string;
-
   CF_API_TOKEN?: string;
 }
 
@@ -325,20 +322,6 @@ export interface UnifiedMinecraftGeneral {
   };
   updated_at: number;
 }
-
-export interface UnifiedMinecraftHypixel {
-  uuid: string;
-  name: string | null;
-  player: Record<string, unknown> | null;
-  skyblock: unknown[] | null;
-  updated_at: number;
-  source: {
-    player: MinecraftSourceState;
-    skyblock: MinecraftSourceState;
-  };
-}
-
-export type MinecraftSourceState = "ok" | "unavailable" | "not_found" | "error";
 
 export interface ApiEnvelope<T> {
   success: boolean;

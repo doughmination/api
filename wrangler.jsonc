@@ -58,7 +58,7 @@
 	"vars": {
 		"DISCORD_API_VERSION": "9",
 		"TRACKED_GUILD_IDS": "",
-		"DISCORD_CLIENT_BUILD_NUMBER": "579073",
+		"DISCORD_CLIENT_BUILD_NUMBER": "602393",
 		"GIRLS_GUILD_ID": "1498839518265213069",
 		// Guilds to resolve per-user membership for (roles/join/boost/nick/avatar/
 		// timeout). Empty falls back to TRACKED_GUILD_IDS; empty there = skipped.
@@ -69,47 +69,20 @@
 		"REVIEWDB_API_BASE": "https://manti.vendicated.dev/api/reviewdb",
 		"REVIEWDB_MAX": "25",
 
-		// ---- Doughmination system API (/v2/plural, /v2/battery, ...) --------
-		// Non-secret config. Secrets (JWT_SECRET, SYSTEM_TOKEN, TURNSTILE_SECRET,
-		// POCKETID_CLIENT_SECRET, DOUGH_BOT_TOKEN, BATTERY_API_KEYS) go in
-		// .dev.vars for local dev and `wrangler secret put <NAME>` in production.
 		"CACHE_TTL": "30",
 		"ADMIN_USERNAME": "clove",
 		"ADMIN_DISPLAY_NAME": "Administrator",
-		// Owner's contact address. Backfilled onto the owner account on read,
-		// so the pre-existing account gets one without a manual edit. Public
-		// address, hence a var rather than a secret.
 		"ADMIN_EMAIL": "admin@doughmination.win",
 		"BASE_URL": "https://doughmination.uk",
 		"CORS_ORIGINS": "",
-
-		// Site ids /v2/counter will accept. Empty leaves the counter open, so
-		// any well-formed id registers itself on its first hit (capped at
-		// MAX_SITES). Set it to lock the counter to a known list of sites.
 		"COUNTER_SITE_IDS": "is.doughmination.gay",
-
-		// The frontend lives on doughmination.co.uk; this API is
-		// doughmination.uk — so this must NOT inherit BASE_URL.
 		"FRONTEND_URL": "https://doughmination.co.uk",
 
-		// ---- PocketID (OIDC) — the only login method -----------------------
-		// POCKETID_CLIENT_ID / POCKETID_CLIENT_SECRET are secrets:
-		//   wrangler secret put POCKETID_CLIENT_ID
-		//   wrangler secret put POCKETID_CLIENT_SECRET
-		// The issuer must serve /.well-known/openid-configuration. The redirect
-		// URI must be registered in PocketID for this client.
-		"POCKETID_ISSUER": "https://doughmination.xyz",
+		// ---- PocketID (SSO) -----
+		"POCKETID_ISSUER": "https://sso.doughmination.gay",
 		"POCKETID_REDIRECT_URI": "https://doughmination.uk/v2/plural/auth/pocketid/callback",
 		"POCKETID_SCOPES": "openid profile email",
 		"POCKETID_POST_LOGIN_URL": "https://doughmination.co.uk/user/login/callback",
 
-		// Hypixel API policy: the keyed /v2/minecraft/hypixel endpoint only
-		// serves our OWN accounts, never arbitrary players (no proxying the
-		// Public API to third parties). Add every owned UUID here, comma-
-		// separated (any spelling). Empty = endpoint disabled (403).
-		// Accounts: TransCatgorl (main), FontaineDeFurina, ChooseEevee,
-		// MidnightCyan, RealUziDoorman, Doughmination, Genderfae, GothCuddles,
-		// LesbianGothMommy, MeowingForHRT, SpankedByGoths, TransGothicGirl.
-		"MINECRAFT_ALLOWED_UUIDS": "79ef438d69ea473c99cd6a5ec34c6736,d20b556ae2cc452dab726ae082d439af,33d473f2902e458a9da1b345654f5f22,d9ca235297fd4686b680e497432fb719,5387502156ff4f229cd1d1b95293c1ec,c6230d8f1b72449ba2db4c7e4ba9303a,536a2d64b89a423b9fa51ee182f7a118,b046a090cc0845e68e1c2635f4fbda5c,25335e08ea4f4a1880741435df784297,9f34197705164a05b6753a69fff675f7,28a75bbea78f4f7db1bea90e9d38f189,1bd448116a6e4912ab6772849bc89018"
 	}
 }

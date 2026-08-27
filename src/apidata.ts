@@ -58,7 +58,7 @@ export const GROUPS: GroupDef[] = [
     ],
   },
   {
-    id: "minecraft", name: "Minecraft", blurb: "Skins and Hypixel stats for a Minecraft account.",
+    id: "minecraft", name: "Minecraft", blurb: "Skins and capes for a Minecraft account.",
     endpoints: [
       { m: "GET", path: "/minecraft/general/:uuid", auth: "public",
         desc: "A player's Mojang identity: username, UUID (both dashed and short forms), skin and cape texture URLs, the skin's arm model (classic or slim), every cape the player has across providers (Minecraft, OptiFine, MinecraftCapes, LabyMod, 5zig, TLauncher, SkinMC — plus a custom 'doughmination' cape for hand-picked accounts) via the capes array, and a set of ready-to-embed mc-heads render images (face, head, body, player, combo, skin) — each render includes the overlay/hat layer, with _flat variants for the inner skin only. Returns 404 if no Minecraft account has that UUID.",
@@ -68,10 +68,6 @@ export const GROUPS: GroupDef[] = [
         desc: "The set of vanilla (Mojang) capes the API has seen, persisted to memory. It grows over time: every account looked up via /minecraft/general has its equipped vanilla cape remembered, deduped by texture hash. Third-party capes (OptiFine, LabyMod, etc.) are loaded fresh per request and are not persisted here.",
         params: [],
         example: 'GET /minecraft/capes  →  { count, capes: [ { source: "minecraft", cape_url } ] }' },
-      { m: "GET", path: "/minecraft/hypixel/:uuid", auth: "public",
-        desc: "Hypixel stats for one of the operator's OWN Minecraft accounts: the player object (network level and per-game stats — Bedwars, SkyWars, Duels, and the rest) plus their SkyBlock profiles. Per Hypixel API policy this only serves the operator's allowlisted accounts — any other UUID returns 403. Cache-first with a 5-minute TTL (no manual cache-bypass). Always returns 200 for an allowed account; the 'source' field says whether each section loaded ('ok') or why it's null ('not_found' if the account never joined Hypixel, 'unavailable' if Hypixel data isn't configured). Not affiliated with or endorsed by Hypixel Inc.",
-        params: [["uuid", "Minecraft UUID (32 hex, dashes optional) — must be one of the operator's own accounts."]],
-        example: 'GET /minecraft/hypixel/853c80ef3c3749fdaa49938b674adae6  →  { name, player: {…}, skyblock: [{…}], source: { player: "ok", skyblock: "ok" } }' },
     ],
   },
   {

@@ -164,7 +164,7 @@ export const PRIVACY_HTML = pageShell(
   <li><strong>Visit counters.</strong> Pages that show a visitor count call <code>/v2/counter/&lt;site&gt;</code>. Nothing identifying is stored: your IP and user agent are hashed together with a per-site secret salt into an opaque value that can't be reversed or matched across sites, and only that hash, a running total and a per-day tally are kept. No IP addresses, headers, cookies or request paths are written down.</li>
   <li><strong>Guestbook entries.</strong> Name, message, and optional website are public by design. The submitting IP is used transiently for rate limiting (one post per 60 seconds) and spam protection (Cloudflare Turnstile).</li>
   <li><strong>Discord presence & profiles.</strong> The API tracks live presence only for users who share a Discord server with its bot. Presence is held in memory only and never written to storage. Profile data (avatar, badges, connections) is fetched live from Discord on each request and not stored.</li>
-  <li><strong>Minecraft & Hypixel data.</strong> Public data fetched from Mojang/Hypixel on request, cached for about 5 minutes. The vanilla-cape catalogue keeps cape textures (not player identities) permanently.</li>
+  <li><strong>Minecraft data.</strong> Public data fetched from Mojang on request, cached for about 5 minutes. The vanilla-cape catalogue keeps cape textures (not player identities) permanently.</li>
   <li><strong>Accounts & devices.</strong> Plural-system accounts (username, password hash, display name) and device/battery reports are stored for the people who use them — these are private to the system's own users.</li>
 </ul>
 

@@ -1,28 +1,21 @@
 /* =====================================================================
- * minecraft.ts — resolve a Minecraft UUID -> profile / Hypixel stats.
+ * minecraft.ts — resolve a Minecraft UUID -> Mojang profile / skins.
  *
- * Split into two endpoints so callers only pay for what they use:
  *   /v2/minecraft/general/:uuid  -> Mojang name + skin/cape textures.
- *   /v2/minecraft/hypixel/:uuid  -> raw Hypixel player + SkyBlock profiles.
  *
- * Hypixel needs an API key (HYPIXEL_API_KEY, sent as the `API-Key` header);
- * without it the Hypixel sections come back null with source "unavailable".
- * Both endpoints are cache-first (~5 min) since the upstreams drift slowly
- * and would rather not be hammered.
+ * Cache-first (~5 min) since the upstreams drift slowly and would rather
+ * not be hammered.
  * ===================================================================== */
 
 import type {
   Env,
-  MinecraftSourceState,
   UnifiedCape,
   UnifiedMinecraftGeneral,
-  UnifiedMinecraftHypixel,
   VanillaCapeList,
   VanillaCapeRegistry,
 } from "./types";
 
 const MOJANG_PROFILE = "https://sessionserver.mojang.com/session/minecraft/profile";
-const HYPIXEL_BASE = "https://api.hypixel.net/v2";
 const CRAFTHEAD = "https://crafthead.net";
 const MCHEADS = "https://mc-heads.net";
 const CAPES_API = "https://api.capes.dev/load";
@@ -87,7 +80,7 @@ async function fetchMojangProfile(short: string): Promise<MojangProfileResponse 
   throw new MojangUpstreamError(lastStatus);
 }
 
-/** Strip dashes and lowercase — the form Mojang/Hypixel expect in URLs. */
+/** Strip dashes and lowercase — the form Mojang expects in URLs. */
 function undash(uuid: string): string {
   return uuid.replace(/-/g, "").toLowerCase();
 }
@@ -135,7 +128,6 @@ export function isMinecraftUuid(uuid: string): boolean {
 }
 
 const generalKey = (short: string) => `minecraft:general:${short}`;
-const hypixelKey = (short: string) => `minecraft:hypixel:${short}`;
 /** KV key holding the persistent memory of vanilla cape textures we've seen. */
 const VANILLA_CAPES_KEY = "minecraft:capes:vanilla";
 
@@ -252,54 +244,6 @@ export async function getVanillaCapeList(env: Env): Promise<VanillaCapeList> {
 }
 
 /**
- * The set of owner-owned UUIDs allowed on the keyed Hypixel endpoint, parsed
- * from MINECRAFT_ALLOWED_UUIDS (any spelling, comma-separated) into normalized
- * 32-char hex. Hypixel policy forbids proxying the Public API to third parties,
- * so the keyed endpoint only ever answers for our own accounts. An empty/unset
- * var yields an empty set — the route treats that as "disabled".
- */
-export function allowedHypixelUuids(env: Env): Set<string> {
-  const raw = env.MINECRAFT_ALLOWED_UUIDS ?? "";
-  const out = new Set<string>();
-  for (const part of raw.split(",")) {
-    const norm = normalizeMcUuid(part.trim());
-    if (norm) out.add(norm);
-  }
-  return out;
-}
-
-/** True when `short` (normalized hex) is one of our own allowlisted accounts. */
-export function isAllowedHypixelUuid(env: Env, short: string): boolean {
-  return allowedHypixelUuids(env).has(undash(short));
-}
-
-/** Fetch a Hypixel v2 endpoint and unwrap { success, <key> }.
- *  Returns [value, state] where state explains a null value. */
-async function fetchHypixel<T>(
-  env: Env,
-  path: string,
-  key: string,
-): Promise<[T | null, MinecraftSourceState]> {
-  const apiKey = env.HYPIXEL_API_KEY;
-  if (!apiKey) return [null, "unavailable"];
-  try {
-    const res = await fetch(`${HYPIXEL_BASE}${path}`, {
-      headers: { "API-Key": apiKey, Accept: "application/json" },
-    });
-    if (!res.ok) return [null, "error"];
-    const body = (await res.json()) as Record<string, unknown> & { success?: boolean };
-    if (!body.success) return [null, "error"];
-    const value = body[key] as T | null | undefined;
-    // Hypixel returns success:true with player:null for accounts that never
-    // logged in — treat that as not_found rather than an error.
-    if (value === null || value === undefined) return [null, "not_found"];
-    return [value, "ok"];
-  } catch {
-    return [null, "error"];
-  }
-}
-
-/**
  * Mojang identity + skin/cape for a UUID. Cache-first (~5 min). Returns null
  * only when the UUID doesn't map to a Mojang account (so the caller can 404).
  */
@@ -384,47 +328,6 @@ export async function getMinecraftGeneral(
   };
 
   const write = env.PROFILE_CACHE.put(generalKey(short), JSON.stringify(result), {
-    expirationTtl: TTL_SECONDS,
-  });
-  if (ctx) ctx.waitUntil(write);
-  else await write;
-
-  return result;
-}
-
-/**
- * Raw Hypixel player object + SkyBlock profiles for a UUID. Cache-first
- * (~5 min). Never returns null: Hypixel gaps degrade gracefully via `source`
- * (unavailable / not_found / error), so the caller gets a 200 either way.
- */
-export async function getMinecraftHypixel(
-  env: Env,
-  uuid: string,
-  ctx?: ExecutionContext,
-  force = false,
-): Promise<UnifiedMinecraftHypixel> {
-  const short = undash(uuid);
-
-  if (!force) {
-    const cached = (await env.PROFILE_CACHE.get(hypixelKey(short), "json")) as UnifiedMinecraftHypixel | null;
-    if (cached) return cached;
-  }
-
-  const [[player, playerState], [skyblock, skyblockState]] = await Promise.all([
-    fetchHypixel<Record<string, unknown>>(env, `/player?uuid=${short}`, "player"),
-    fetchHypixel<unknown[]>(env, `/skyblock/profiles?uuid=${short}`, "profiles"),
-  ]);
-
-  const result: UnifiedMinecraftHypixel = {
-    uuid: dash(short),
-    name: (player?.displayname as string | undefined) ?? null,
-    player,
-    skyblock,
-    updated_at: Date.now(),
-    source: { player: playerState, skyblock: skyblockState },
-  };
-
-  const write = env.PROFILE_CACHE.put(hypixelKey(short), JSON.stringify(result), {
     expirationTtl: TTL_SECONDS,
   });
   if (ctx) ctx.waitUntil(write);
