@@ -9,7 +9,6 @@ import type { Context } from "hono";
 
 import type { Env } from "../hono";
 import { getFrontingTimeMetrics, getSwitchFrequencyMetrics } from "../services/metrics";
-import { requireAuth } from "../middleware/auth";
 import { HttpError } from "../errors";
 
 export const metricsRoutes = new Hono<Env>();
@@ -20,7 +19,7 @@ function parseDays(c: Context): number {
   return raw !== undefined && !Number.isNaN(parsed) ? parsed : 30;
 }
 
-metricsRoutes.get("/metrics/fronting-time", requireAuth, async (c) => {
+metricsRoutes.get("/metrics/fronting-time", async (c) => {
   try {
     return c.json(await getFrontingTimeMetrics(parseDays(c)));
   } catch (err) {
@@ -28,7 +27,7 @@ metricsRoutes.get("/metrics/fronting-time", requireAuth, async (c) => {
   }
 });
 
-metricsRoutes.get("/metrics/switch-frequency", requireAuth, async (c) => {
+metricsRoutes.get("/metrics/switch-frequency", async (c) => {
   try {
     return c.json(await getSwitchFrequencyMetrics(parseDays(c)));
   } catch (err) {
