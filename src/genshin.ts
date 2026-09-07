@@ -4,12 +4,14 @@ import type {
   Env,
   UnifiedGenshinArtifact,
   UnifiedGenshinArtifactSlot,
+  UnifiedGenshinArtifactSetBonus,
   UnifiedGenshinCharacter,
   UnifiedGenshinCharacterConstellations,
   UnifiedGenshinCharacterDetail,
   UnifiedGenshinCharacterItems,
   UnifiedGenshinRoster,
   UnifiedGenshinStat,
+  UnifiedGenshinTalents,
   UnifiedGenshinWeapon,
 } from "./types";
 import { ABUSE_CONTACT } from "./abuse";
@@ -20,12 +22,19 @@ const CHARACTERS_JSON_URL =
 const LOC_JSON_URL = "https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/gi/locs.json";
 const LOC_LEGACY_JSON_URL =
   "https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/loc.json";
-const ICON_BASE = "https://enka.network/ui";
+// Enka's curated loc store omits artifact set names, so those come from
+// Project Amber (Hoyo data mirror) instead — keyed by numeric set id.
+const RELIC_SETS_JSON_URL = "https://gi.yatta.moe/api/v2/en/reliquary";
+// Icon URLs are handed out pointing at our own CDN, which proxies + edge-caches
+// enka.network/ui/* (see cdn/functions/genshin/ui/[[path]].ts) so heavy card
+// rendering never hammers Enka directly.
+const ICON_BASE = "https://m.doughmination.gay/genshin/ui";
 const ENKA_USER_AGENT = `doughmination-genshin-roster/1.0 (+https://doughmination.uk; contact: ${ABUSE_CONTACT})`;
 
 const CATALOG_TTL_SECONDS = 60 * 60 * 24;
 const ROSTER_MIN_TTL_SECONDS = 30;
 const CATALOG_KEY = "genshin:catalog:v2";
+const RELIC_SETS_KEY = "genshin:relicsets:v1";
 const LOC_KEY = "genshin:loc:v2";
 const rawKey = (uid: string) => `genshin:raw:${uid}`;
 const ledgerKey = (uid: string) => `genshin:owned:${uid}`;
@@ -56,6 +65,7 @@ function resolveDisplayName(rawName: string | undefined): string | undefined {
 }
 
 const STAT_NAMES: Record<string, string> = {
+  FIGHT_PROP_BASE_ATTACK: "Base ATK",
   FIGHT_PROP_HP: "HP",
   FIGHT_PROP_HP_PERCENT: "HP%",
   FIGHT_PROP_ATTACK: "ATK",
@@ -103,6 +113,30 @@ const ARTIFACT_SLOTS: Record<string, UnifiedGenshinArtifactSlot> = {
   EQUIP_DRESS: "circlet",
 };
 
+// Numeric FIGHT_PROP ids as they appear in Enka's avatar `fightPropMap`
+// (the totalled sheet stats — not the artifact substat strings above).
+const FIGHT_PROP_IDS: Record<string, string> = {
+  "2000": "Max HP",
+  "2001": "ATK",
+  "2002": "DEF",
+  "28": "Elemental Mastery",
+  "20": "CRIT Rate",
+  "22": "CRIT DMG",
+  "23": "Energy Recharge",
+  "26": "Healing Bonus",
+  "30": "Physical DMG Bonus",
+  "40": "Pyro DMG Bonus",
+  "41": "Electro DMG Bonus",
+  "42": "Hydro DMG Bonus",
+  "43": "Dendro DMG Bonus",
+  "44": "Anemo DMG Bonus",
+  "45": "Geo DMG Bonus",
+  "46": "Cryo DMG Bonus",
+};
+// Elemental / physical / healing bonuses, in the order the game lists them —
+// the card shows whichever single one is highest (if any).
+const DMG_BONUS_IDS = ["40", "41", "42", "43", "44", "45", "46", "30", "26"];
+
 interface RawCharacterEntry {
   Element?: string;
   QualityType?: string;
@@ -125,11 +159,12 @@ interface RawArtifactMainStat {
 interface RawFlat {
   nameTextMapHash?: number | string;
   setNameTextMapHash?: number | string;
+  setId?: number;
   rankLevel?: number;
   icon?: string;
   weaponStats?: RawStat[];
-  artifactMainData?: RawArtifactMainStat;
-  reliquarySubStats?: RawStat[];
+  reliquaryMainstat?: RawArtifactMainStat;
+  reliquarySubstats?: RawStat[];
   equipType?: string;
 }
 
@@ -159,6 +194,8 @@ interface EnkaAvatarInfo {
   avatarId: number;
   propMap?: Record<string, { ival?: string }>;
   talentIdList?: number[];
+  skillLevelMap?: Record<string, number>;
+  fightPropMap?: Record<string, number>;
   fetterInfo?: { expLevel?: number };
   equipList?: RawEquip[];
 }
@@ -220,8 +257,16 @@ interface CatalogEntry {
   rarity: number;
   iconUrl: string;
   sideIconUrl: string;
+  // Full-body gacha splash art (`UI_Gacha_AvatarImg_*`), used by the bot's
+  // character card. Empty when the icon name doesn't follow the convention.
+  gachaIconUrl: string;
 }
 type Catalog = Record<string, CatalogEntry>;
+
+function gachaArtUrl(fullIcon: string): string {
+  if (!fullIcon.startsWith("UI_AvatarIcon_")) return "";
+  return `${ICON_BASE}/${fullIcon.replace("UI_AvatarIcon_", "UI_Gacha_AvatarImg_")}.png`;
+}
 
 function iconStem(raw: string | undefined): string {
   if (!raw) return "";
@@ -239,6 +284,7 @@ const INJECTED_CHARACTERS: Record<string, CatalogEntry> = {
     rarity: 5,
     iconUrl: `${ICON_BASE}/UI_AvatarIcon_MannequinBoy.png`,
     sideIconUrl: `${ICON_BASE}/UI_AvatarIcon_Side_MannequinBoy.png`,
+    gachaIconUrl: `${ICON_BASE}/UI_Gacha_AvatarImg_MannequinBoy.png`,
   },
   "10000118": {
     name: "Manekina",
@@ -246,6 +292,7 @@ const INJECTED_CHARACTERS: Record<string, CatalogEntry> = {
     rarity: 5,
     iconUrl: `${ICON_BASE}/UI_AvatarIcon_MannequinGirl.png`,
     sideIconUrl: `${ICON_BASE}/UI_AvatarIcon_Side_MannequinGirl.png`,
+    gachaIconUrl: `${ICON_BASE}/UI_Gacha_AvatarImg_MannequinGirl.png`,
   },
 };
 
@@ -274,6 +321,7 @@ async function getCatalog(env: Env, ctx?: ExecutionContext, force = false): Prom
       rarity: entry.QualityType?.startsWith("QUALITY_ORANGE") ? 5 : 4,
       iconUrl: fullIcon ? `${ICON_BASE}/${fullIcon}.png` : "",
       sideIconUrl: sideIcon ? `${ICON_BASE}/${sideIcon}.png` : "",
+      gachaIconUrl: gachaArtUrl(fullIcon),
     };
   }
 
@@ -288,6 +336,44 @@ async function getCatalog(env: Env, ctx?: ExecutionContext, force = false): Prom
   else await write;
 
   return catalog;
+}
+
+// setId -> English set name (e.g. "15031" -> "Marechaussee Hunter").
+type RelicSetNames = Record<string, string>;
+
+interface RawRelicSetList {
+  data?: { items?: Record<string, { name?: string }> };
+}
+
+async function getRelicSetNames(
+  env: Env,
+  ctx?: ExecutionContext,
+  force = false,
+): Promise<RelicSetNames> {
+  if (!force) {
+    const cached = (await env.PROFILE_CACHE.get(RELIC_SETS_KEY, "json")) as RelicSetNames | null;
+    if (cached) return cached;
+  }
+
+  let names: RelicSetNames = {};
+  try {
+    const raw = await fetchJson<RawRelicSetList>(RELIC_SETS_JSON_URL);
+    for (const [setId, item] of Object.entries(raw.data?.items ?? {})) {
+      if (item?.name) names[setId] = item.name;
+    }
+  } catch {
+    // Non-fatal: the card just falls back to "Unknown" set names.
+    names = {};
+  }
+
+  if (Object.keys(names).length > 0) {
+    const write = env.PROFILE_CACHE.put(RELIC_SETS_KEY, JSON.stringify(names), {
+      expirationTtl: CATALOG_TTL_SECONDS,
+    });
+    if (ctx) ctx.waitUntil(write);
+    else await write;
+  }
+  return names;
 }
 
 export class EnkaNotFoundError extends Error {
@@ -328,13 +414,14 @@ async function getUidData(
   uid: string,
   ctx?: ExecutionContext,
   force = false,
-): Promise<{ raw: EnkaUidResponse; catalog: Catalog; loc: RawLoc }> {
-  const [raw, catalog, loc] = await Promise.all([
+): Promise<{ raw: EnkaUidResponse; catalog: Catalog; loc: RawLoc; relicSets: RelicSetNames }> {
+  const [raw, catalog, loc, relicSets] = await Promise.all([
     getCachedRaw(env, uid, ctx, force),
     getCatalog(env, ctx, force),
     getLoc(env, ctx, force),
+    getRelicSetNames(env, ctx, force),
   ]);
-  return { raw, catalog, loc };
+  return { raw, catalog, loc, relicSets };
 }
 
 function statFromId(id: string | undefined, value: number | undefined): UnifiedGenshinStat | null {
@@ -366,22 +453,99 @@ function buildWeapon(equip: RawEquip, loc: RawLoc): UnifiedGenshinWeapon | null 
   };
 }
 
-function buildArtifact(equip: RawEquip, loc: RawLoc): UnifiedGenshinArtifact | null {
+function buildArtifact(
+  equip: RawEquip,
+  loc: RawLoc,
+  relicSets: RelicSetNames,
+): UnifiedGenshinArtifact | null {
   if (!equip.reliquary) return null;
+  const setName =
+    (equip.flat.setId != null ? relicSets[String(equip.flat.setId)] : undefined) ??
+    locName(loc, equip.flat.setNameTextMapHash);
   return {
     id: String(equip.itemId),
     name: locName(loc, equip.flat.nameTextMapHash),
-    set_name: locName(loc, equip.flat.setNameTextMapHash),
+    set_name: setName,
     slot: ARTIFACT_SLOTS[equip.flat.equipType ?? ""] ?? "flower",
     rarity: equip.flat.rankLevel ?? 1,
     // Raw reliquary.level is 1 higher than the in-game "+N".
     level: Math.max(0, (equip.reliquary.level ?? 1) - 1),
-    main_stat: statFromId(equip.flat.artifactMainData?.mainPropId, equip.flat.artifactMainData?.statValue),
-    sub_stats: (equip.flat.reliquarySubStats ?? [])
+    main_stat: statFromId(
+      equip.flat.reliquaryMainstat?.mainPropId,
+      equip.flat.reliquaryMainstat?.statValue,
+    ),
+    sub_stats: (equip.flat.reliquarySubstats ?? [])
       .map((s) => toStat(s))
       .filter((s): s is UnifiedGenshinStat => s !== null),
     icon_url: equip.flat.icon ? `${ICON_BASE}/${equip.flat.icon}.png` : "",
   };
+}
+
+// The totalled sheet stats shown down the middle of the card, in game order.
+// HP / ATK / DEF carry their base + artifact/weapon-added split.
+function buildStats(fp: Record<string, number> | undefined): UnifiedGenshinStat[] {
+  if (!fp) return [];
+  const at = (id: string): number => fp[id] ?? 0;
+  const out: UnifiedGenshinStat[] = [];
+
+  const withBase = (name: string, totalId: string, baseId: string): void => {
+    const total = at(totalId);
+    const base = at(baseId);
+    out.push({
+      name,
+      value: total,
+      is_percent: false,
+      base,
+      added: Math.max(0, total - base),
+    });
+  };
+  withBase("Max HP", "2000", "1");
+  withBase("ATK", "2001", "4");
+  withBase("DEF", "2002", "7");
+
+  if (at("28") > 0) {
+    out.push({ name: "Elemental Mastery", value: at("28"), is_percent: false });
+  }
+  out.push({ name: "CRIT Rate", value: at("20") * 100, is_percent: true });
+  out.push({ name: "CRIT DMG", value: at("22") * 100, is_percent: true });
+  out.push({ name: "Energy Recharge", value: at("23") * 100, is_percent: true });
+
+  let bonusId = "";
+  let bonusVal = 0;
+  for (const id of DMG_BONUS_IDS) {
+    if (at(id) > bonusVal) {
+      bonusVal = at(id);
+      bonusId = id;
+    }
+  }
+  if (bonusId && bonusVal > 0.0001) {
+    out.push({ name: FIGHT_PROP_IDS[bonusId], value: bonusVal * 100, is_percent: true });
+  }
+  return out;
+}
+
+// skillLevelMap keys sort (numerically) into normal / skill / burst order.
+function buildTalents(
+  map: Record<string, number> | undefined,
+): UnifiedGenshinTalents | null {
+  if (!map) return null;
+  const levels = Object.entries(map)
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([, level]) => level);
+  if (levels.length < 3) return null;
+  return { normal: levels[0], skill: levels[1], burst: levels[2] };
+}
+
+function buildSets(artifacts: UnifiedGenshinArtifact[]): UnifiedGenshinArtifactSetBonus[] {
+  const counts = new Map<string, number>();
+  for (const a of artifacts) {
+    if (!a.set_name || a.set_name === "Unknown") continue;
+    counts.set(a.set_name, (counts.get(a.set_name) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .filter(([, n]) => n >= 2)
+    .map(([name, n]) => ({ name, count: Math.min(n, 4) }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
 const LEDGER_TOUCH_MS = 1000 * 60 * 5;
@@ -565,11 +729,13 @@ export async function getGenshinCharacterDetail(
   let raw: EnkaUidResponse;
   let catalog: Catalog;
   let loc: RawLoc;
+  let relicSets: RelicSetNames;
   try {
     const data = await getUidData(env, uid, ctx, force);
     raw = data.raw;
     catalog = data.catalog;
     loc = data.loc;
+    relicSets = data.relicSets;
   } catch (err) {
     const led = ledger.characters[heroId];
     const staleCatalog = await getCatalog(env, ctx);
@@ -582,14 +748,18 @@ export async function getGenshinCharacterDetail(
       element: meta.element,
       rarity: meta.rarity,
       icon_url: meta.iconUrl,
+      art_url: meta.gachaIconUrl || meta.iconUrl,
       owned: true,
       tracked: false,
       last_seen: led.last_seen,
       level: led.level,
       constellation: led.constellation,
       friendship: null,
+      talents: null,
+      stats: [],
       weapon: null,
       artifacts: [],
+      sets: [],
       updated_at: ledger.updated_at,
     };
   }
@@ -603,6 +773,7 @@ export async function getGenshinCharacterDetail(
     element: meta.element,
     rarity: meta.rarity,
     icon_url: meta.iconUrl,
+    art_url: meta.gachaIconUrl || meta.iconUrl,
     updated_at: Date.now(),
   };
 
@@ -618,8 +789,11 @@ export async function getGenshinCharacterDetail(
         level: led.level,
         constellation: led.constellation,
         friendship: null,
+        talents: null,
+        stats: [],
         weapon: null,
         artifacts: [],
+        sets: [],
       };
     }
     return {
@@ -630,8 +804,11 @@ export async function getGenshinCharacterDetail(
       level: null,
       constellation: 0,
       friendship: null,
+      talents: null,
+      stats: [],
       weapon: null,
       artifacts: [],
+      sets: [],
     };
   }
 
@@ -645,6 +822,9 @@ export async function getGenshinCharacterDetail(
 
   const weaponEquip = entry?.equipList?.find((e) => e.weapon);
   const artifactEquips = (entry?.equipList ?? []).filter((e) => e.reliquary);
+  const artifacts = artifactEquips
+    .map((e) => buildArtifact(e, loc, relicSets))
+    .filter((a): a is UnifiedGenshinArtifact => a !== null);
 
   return {
     ...base,
@@ -654,10 +834,11 @@ export async function getGenshinCharacterDetail(
     level: found.level,
     constellation,
     friendship: entry?.fetterInfo?.expLevel ?? null,
+    talents: buildTalents(entry?.skillLevelMap),
+    stats: buildStats(entry?.fightPropMap),
     weapon: weaponEquip ? buildWeapon(weaponEquip, loc) : null,
-    artifacts: artifactEquips
-      .map((e) => buildArtifact(e, loc))
-      .filter((a): a is UnifiedGenshinArtifact => a !== null),
+    artifacts,
+    sets: buildSets(artifacts),
   };
 }
 

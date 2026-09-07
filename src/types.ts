@@ -358,6 +358,21 @@ export interface UnifiedGenshinStat {
   name: string;
   value: number;
   is_percent: boolean;
+  // Present only on the character's Max HP / ATK / DEF sheet totals: the
+  // white-text base and the green-text weapon/artifact-added portion.
+  base?: number;
+  added?: number;
+}
+
+export interface UnifiedGenshinTalents {
+  normal: number;
+  skill: number;
+  burst: number;
+}
+
+export interface UnifiedGenshinArtifactSetBonus {
+  name: string;
+  count: number;
 }
 
 export interface UnifiedGenshinWeapon {
@@ -392,10 +407,19 @@ export interface UnifiedGenshinArtifact {
 }
 
 export interface UnifiedGenshinCharacterDetail extends UnifiedGenshinCharacter {
+  // Full-body gacha splash art for the character card.
+  art_url: string;
   constellation: number;
   friendship: number | null;
+  // Normal attack / elemental skill / elemental burst levels. Null when the
+  // character isn't in the live showcase.
+  talents: UnifiedGenshinTalents | null;
+  // Totalled sheet stats (Max HP, ATK, DEF, EM, CRIT, ER, top DMG bonus).
+  stats: UnifiedGenshinStat[];
   weapon: UnifiedGenshinWeapon | null;
   artifacts: UnifiedGenshinArtifact[];
+  // Active 2-/4-piece artifact set bonuses.
+  sets: UnifiedGenshinArtifactSetBonus[];
   updated_at: number;
 }
 
