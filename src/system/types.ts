@@ -28,7 +28,7 @@ export interface SystemEnv {
   CACHE_TTL?: string;
 
   // ---- Auth --------------------------------------------------------------
-  /** HMAC secret for signing the JWT the API issues after a PocketID login.
+  /** HMAC secret for signing the JWT the API issues after an SSO login.
    *  REQUIRED in production. */
   JWT_SECRET?: string;
   /** Cloudflare Turnstile secret (public guestbook captcha). */
@@ -36,21 +36,23 @@ export interface SystemEnv {
   /** Back-compat alias for the original (typo'd) env name. */
   TURNSILE_SECRET?: string;
 
-  // ---- PocketID (OIDC) — the only login method ---------------------------
-  /** Issuer origin, e.g. https://doughmination.xyz (no trailing slash). */
-  POCKETID_ISSUER?: string;
-  /** OIDC client id for this application. */
-  POCKETID_CLIENT_ID?: string;
-  /** OIDC client secret — set with `wrangler secret put POCKETID_CLIENT_SECRET`. */
-  POCKETID_CLIENT_SECRET?: string;
+  // ---- Doughmination SSO (OIDC) — the only login method -----------------
+  /** Issuer origin, e.g. https://auth.doughmination.gay (no trailing slash). */
+  SSO_ISSUER?: string;
+  /** OIDC client id of this API's application on the SSO. */
+  SSO_CLIENT_ID?: string;
+  /** OIDC client secret — set with `wrangler secret put SSO_CLIENT_SECRET`. */
+  SSO_CLIENT_SECRET?: string;
   /** Registered redirect URI. Defaults to
-   *  `${BASE_URL}/v2/plural/auth/pocketid/callback`. */
-  POCKETID_REDIRECT_URI?: string;
-  /** Space-separated scopes. Defaults to "openid profile email". */
-  POCKETID_SCOPES?: string;
+   *  `${BASE_URL}/v2/plural/auth/sso/callback`. */
+  SSO_REDIRECT_URI?: string;
+  /** Space-separated scopes. Defaults to "openid profile email offline_access". */
+  SSO_SCOPES?: string;
   /** Frontend page the callback hands the minted JWT to (in the URL fragment).
    *  Defaults to `${FRONTEND_URL}/user/login/callback`. */
-  POCKETID_POST_LOGIN_URL?: string;
+  SSO_POST_LOGIN_URL?: string;
+  /** Where the SSO sends the browser after logout. Defaults to `${FRONTEND_URL}/`. */
+  SSO_POST_LOGOUT_REDIRECT_URI?: string;
 
   // ---- Initial owner seed (only used when no users exist yet) ------------
   ADMIN_USERNAME?: string;

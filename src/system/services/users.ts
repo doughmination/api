@@ -7,10 +7,10 @@
 /**
  * User management service.
  *
- * Authentication is PocketID (OIDC) only — there are no passwords here. Each
- * account is linked to a PocketID subject (`pocket_id`); on first login we
- * match an existing account by username and backfill the link, or provision a
- * new non-admin account. Roles (admin/owner/pet), avatars and the owner
+ * Authentication is the Doughmination SSO (OIDC) only — there are no passwords
+ * here. Each account is linked to an SSO subject (`pocket_id` + `sso_issuer`);
+ * on first login we match an existing, not-yet-linked account by username and
+ * fill in the link, or provision a new non-admin account. Roles (admin/owner/pet), avatars and the owner
  * protections are unchanged. Storage is the DO blob store (key "users").
  */
 
@@ -76,10 +76,10 @@ export async function getUserById(userId: string): Promise<User | null> {
   return users.find((u) => u.id === userId) ?? null;
 }
 
-export async function getUserBySub(sub: string): Promise<User | null> {
+export async function getUserBySub(sub: string, issuer: string): Promise<User | null> {
   if (!sub) return null;
   const users = await getUsers();
-  return users.find((u) => u.pocket_id && u.pocket_id === sub) ?? null;
+  return users.find((u) => u.pocket_id === sub && u.sso_issuer === issuer) ?? null;
 }
 
 export function normalizeEmail(email: string): string {
@@ -155,30 +155,49 @@ export async function createUser(
 }
 
 /**
- * Resolve a PocketID login to a local account.
+ * Resolve an SSO login to a local account.
  *
- * Match order: by the stable `pocket_id` subject first, then by username
- * (case-insensitive) so a pre-existing/owner account adopts its PocketID link
- * on first login. Unknown users are auto-provisioned as non-admins.
+ * Match order:
+ *   1. the account already linked to this subject on this issuer;
+ *   2. an account pre-provisioned with this subject but no issuer yet;
+ *   3. by username (case-insensitive), but ONLY an account that isn't linked
+ *      to this issuer yet — the owner seed, admin-provisioned accounts, and
+ *      accounts from the PocketID days. Each such account is adopted once.
+ *
+ * An account already linked to a *different* subject on this issuer is never
+ * taken over by username, so a reused or renamed SSO username can't inherit
+ * someone else's account (including the owner's). Unknown users are
+ * auto-provisioned as non-admins.
  */
-export async function findOrCreateFromPocketId(claims: {
+export async function findOrCreateFromSso(claims: {
   sub: string;
+  issuer: string;
   username: string;
   email?: string | null;
   displayName?: string | null;
 }): Promise<User> {
   const users = await getUsers();
+  const sameName = (u: User) => u.username.toLowerCase() === claims.username.toLowerCase();
 
-  const bySub = users.find((u) => u.pocket_id && u.pocket_id === claims.sub);
-  const byName = users.find((u) => u.username.toLowerCase() === claims.username.toLowerCase());
-  const existing = bySub ?? byName;
+  const linked = users.find((u) => u.pocket_id === claims.sub && u.sso_issuer === claims.issuer);
+  const preLinked = users.find((u) => u.pocket_id === claims.sub && !u.sso_issuer);
+  const byName = users.find((u) => sameName(u) && u.sso_issuer !== claims.issuer);
+  const existing = linked ?? preLinked ?? byName;
+
+  if (!existing && users.some(sameName)) {
+    throw new Error(
+      `The username '${claims.username}' here is linked to a different SSO account. Ask the owner to sort it out.`,
+    );
+  }
 
   if (existing) {
     const index = users.findIndex((u) => u.id === existing.id);
     let changed = false;
 
-    if (existing.pocket_id !== claims.sub) {
+    if (existing.pocket_id !== claims.sub || existing.sso_issuer !== claims.issuer) {
+      console.info(`Linking account '${existing.username}' to ${claims.issuer} subject ${claims.sub}`);
       existing.pocket_id = claims.sub;
+      existing.sso_issuer = claims.issuer;
       changed = true;
     }
     // Backfill contact/profile metadata from the provider if we don't have it.
@@ -198,8 +217,8 @@ export async function findOrCreateFromPocketId(claims: {
     return existing;
   }
 
-  // First-time login for an unknown PocketID user → provision a plain account.
-  return createUser({
+  // First-time login for an unknown SSO user → provision a plain account.
+  const created = await createUser({
     username: claims.username,
     pocket_id: claims.sub,
     email: claims.email ?? null,
@@ -207,6 +226,15 @@ export async function findOrCreateFromPocketId(claims: {
     is_admin: false,
     is_pet: false,
   });
+  return linkIssuer(created.id, claims.issuer);
+}
+
+async function linkIssuer(userId: string, issuer: string): Promise<User> {
+  const users = await getUsers();
+  const index = users.findIndex((u) => u.id === userId);
+  users[index] = { ...users[index], sso_issuer: issuer };
+  await saveUsers(users);
+  return users[index];
 }
 
 export async function updateUser(
@@ -241,7 +269,7 @@ export async function updateUser(
 
   // ---- Email (contact metadata only) ------------------------------------
   // Editable by the account's own user or by an admin/owner. Identity is
-  // proven by PocketID, so there is no confirmation step.
+  // proven by the SSO, so there is no confirmation step.
   let email = user.email ?? null;
   if (userUpdate.email !== undefined) {
     const requestedEmail = userUpdate.email ? normalizeEmail(userUpdate.email) : null;
@@ -265,6 +293,7 @@ export async function updateUser(
     id: user.id,
     username: user.username,
     pocket_id: user.pocket_id ?? null,
+    sso_issuer: user.sso_issuer ?? null,
     // `undefined` = field omitted, keep current value; explicit `null` clears it.
     display_name: userUpdate.display_name !== undefined ? userUpdate.display_name : user.display_name,
     email,
@@ -306,9 +335,9 @@ export async function deleteUser(userId: string, requestingUser?: User | null): 
  * Seed the owner account from ADMIN_* env vars if no users exist yet.
  *
  * The account has no password — it becomes usable the first time the owner
- * signs in through PocketID with a matching `preferred_username`, at which
- * point its `pocket_id` link is filled in automatically (see
- * findOrCreateFromPocketId). Runs lazily on first request.
+ * signs in through the SSO with a matching `preferred_username`, at which
+ * point its SSO link is filled in automatically (see findOrCreateFromSso).
+ * Runs lazily on first request.
  */
 export async function initializeAdminUser(): Promise<void> {
   const users = await getUsers();

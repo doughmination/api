@@ -28,18 +28,25 @@ export const UserSchema = z.object({
   id: z.string(),
   username: z.string(),
   /**
-   * The PocketID subject identifier (OIDC `sub`) this account is linked to.
-   * Set on first PocketID login and used as the primary match key thereafter.
+   * The OIDC subject (`sub`) this account is linked to. The field keeps its
+   * original name so stored records load unchanged: accounts linked before the
+   * move to the Doughmination SSO hold a PocketID subject here.
    * Optional so the owner seed and pre-link accounts still load.
    */
   pocket_id: z.string().nullable().optional(),
+  /**
+   * Issuer that `pocket_id` belongs to. Null/absent = linked before the SSO
+   * move (or never linked), which is what lets the first SSO sign-in adopt the
+   * account by username exactly once.
+   */
+  sso_issuer: z.string().nullable().optional(),
   /**
    * Legacy PBKDF2 hash from the retired password login. Kept optional purely
    * so old stored records still parse; it is never read or written any more.
    */
   password_hash: z.string().nullable().optional(),
   display_name: z.string().nullable().optional(),
-  /** Email address, populated from the PocketID `email` claim when available. */
+  /** Email address, populated from the SSO `email` claim when available. */
   email: z.string().nullable().optional(),
   /** ISO timestamp of account creation. Absent on legacy accounts. */
   created_at: z.string().nullable().optional(),
@@ -52,8 +59,8 @@ export type User = z.infer<typeof UserSchema>;
 
 export const UserCreateSchema = z.object({
   username: z.string(),
-  /** Set when an admin pre-provisions an account before its first PocketID
-   *  login; normally the link is established automatically on login. */
+  /** Set when an admin pre-provisions an account before its first SSO login
+   *  (the SSO subject id); normally the link is established automatically. */
   pocket_id: z.string().nullable().optional(),
   email: EmailSchema.nullable().optional(),
   display_name: z.string().nullable().optional(),
@@ -80,7 +87,7 @@ export const UserUpdateSchema = z.object({
   avatar_url: z.string().nullable().optional(),
   /**
    * Profile email. Changeable by the account's own user or by an admin/owner.
-   * There is no confirmation step any more — identity is proven by PocketID,
+   * There is no confirmation step any more — identity is proven by the SSO,
    * so this field is purely informational/contact metadata.
    */
   email: EmailSchema.nullable().optional(),
@@ -91,7 +98,7 @@ export type UserUpdate = z.infer<typeof UserUpdateSchema>;
 
 /** Strip internal-only fields for public-facing responses. */
 export function toUserResponse(user: User): UserResponse {
-  const { password_hash: _pw, pocket_id: _sub, ...rest } = user;
+  const { password_hash: _pw, pocket_id: _sub, sso_issuer: _iss, ...rest } = user;
   return rest;
 }
 

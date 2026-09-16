@@ -15,6 +15,7 @@ import type { Env } from "../hono";
 import { decodeAccessToken } from "../security";
 import { HttpError } from "../errors";
 import { getUserByUsername } from "../services/users";
+import { currentSsoSession } from "../services/sso_sessions";
 import { verifyBotToken, verifyBatteryKey } from "../services/keys";
 import type { User } from "../models";
 
@@ -36,6 +37,14 @@ async function resolveCurrentUser(c: Context<Env>): Promise<User> {
   const username = payload.sub;
   if (!username || typeof username !== "string") {
     throw new HttpError(401, "Invalid token", { "WWW-Authenticate": "Bearer" });
+  }
+
+  // Every token belongs to an SSO-backed session: logging out, the session
+  // expiring, or the SSO no longer vouching for the account all end it here.
+  // Tokens from before sessions existed carry no sid and must sign in again.
+  const session = typeof payload.sid === "string" ? await currentSsoSession(payload.sid) : null;
+  if (!session || session.username.toLowerCase() !== username.toLowerCase()) {
+    throw new HttpError(401, "Session ended. Please sign in again.", { "WWW-Authenticate": "Bearer" });
   }
 
   const user = await getUserByUsername(username);

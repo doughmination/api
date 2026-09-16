@@ -78,11 +78,13 @@
 		"COUNTER_SITE_IDS": "is.doughmination.gay",
 		"FRONTEND_URL": "https://doughmination.co.uk",
 
-		// ---- PocketID (SSO) -----
-		"POCKETID_ISSUER": "https://sso.doughmination.gay",
-		"POCKETID_REDIRECT_URI": "https://doughmination.uk/v2/plural/auth/pocketid/callback",
-		"POCKETID_SCOPES": "openid profile email",
-		"POCKETID_POST_LOGIN_URL": "https://doughmination.co.uk/user/login/callback",
+		// ---- Doughmination SSO (auth-server) -----
+		// Secrets: wrangler secret put SSO_CLIENT_ID / SSO_CLIENT_SECRET
+		"SSO_ISSUER": "https://auth.doughmination.gay",
+		"SSO_REDIRECT_URI": "https://doughmination.uk/v2/plural/auth/sso/callback",
+		"SSO_SCOPES": "openid profile email offline_access",
+		"SSO_POST_LOGIN_URL": "https://doughmination.co.uk/user/login/callback",
+		"SSO_POST_LOGOUT_REDIRECT_URI": "https://doughmination.co.uk/",
 
 	}
 }

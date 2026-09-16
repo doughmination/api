@@ -9,13 +9,14 @@
  * no `bcrypt`, `jsonwebtoken`, or `axios`).
  *
  *  - JWT: HS256 signed/verified with SubtleCrypto HMAC. This is the token the
- *    API issues to the browser AFTER a successful PocketID (OIDC) login, so
- *    every existing bearer-auth route keeps working unchanged.
+ *    API issues to the browser AFTER a successful SSO (OIDC) login, so every
+ *    existing bearer-auth route keeps working unchanged. It carries the id of
+ *    the SSO-backed session it belongs to (see services/sso_sessions.ts).
  *  - OIDC helpers: cryptographically random state/PKCE-verifier generation and
  *    the S256 code-challenge digest.
  *  - Turnstile: verified with `fetch` (still used by the public guestbook).
  *
- * Local password hashing has been removed — login is PocketID-only.
+ * Local password hashing has been removed — login is SSO-only.
  */
 
 import { ACCESS_TOKEN_EXPIRE_MINUTES, jwtSecret, turnstileSecret } from "./config";
@@ -108,7 +109,11 @@ export interface JwtPayload {
   [k: string]: unknown;
 }
 
-export async function decodeAccessToken(token: string): Promise<JwtPayload> {
+/** `allowExpired` is only for logout, where a stale token should still end its session. */
+export async function decodeAccessToken(
+  token: string,
+  opts: { allowExpired?: boolean } = {},
+): Promise<JwtPayload> {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) throw new Error("malformed");
@@ -123,7 +128,7 @@ export async function decodeAccessToken(token: string): Promise<JwtPayload> {
     if (!valid) throw new Error("bad signature");
 
     const payload = JSON.parse(dec.decode(b64urlToBytes(p))) as JwtPayload & { exp?: number };
-    if (typeof payload.exp === "number" && payload.exp < Math.floor(Date.now() / 1000)) {
+    if (!opts.allowExpired && typeof payload.exp === "number" && payload.exp < Math.floor(Date.now() / 1000)) {
       throw new Error("expired");
     }
     return payload;

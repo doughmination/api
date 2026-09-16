@@ -5,28 +5,32 @@
  */
 
 /**
- * PocketID / OpenID Connect client.
+ * Doughmination SSO / OpenID Connect client.
  *
  * The API is a confidential OIDC client running Authorization Code + PKCE:
  *
- *   1. /auth/pocketid/login  — mint a `state` + PKCE verifier, stash them in
- *      the DO store, and 302 the browser to PocketID's authorization endpoint.
- *   2. PocketID authenticates the user and redirects back with `?code&state`.
- *   3. /auth/pocketid/callback — validate `state`, exchange the code for tokens
- *      over a direct TLS call to the token endpoint, then read the identity
- *      claims from the userinfo endpoint.
+ *   1. /auth/sso/login  — mint a `state` + PKCE verifier, stash them in the DO
+ *      store, and 302 the browser to the SSO's authorization endpoint.
+ *   2. The SSO authenticates the user and redirects back with `?code&state&iss`.
+ *   3. /auth/sso/callback — validate `state` and `iss`, exchange the code for
+ *      tokens over a direct TLS call to the token endpoint, then read the
+ *      identity claims from the userinfo endpoint.
  *
  * Because the code exchange and userinfo call are server-to-server over TLS
  * with a client secret, their responses are trusted directly — we do not need
- * to separately verify the id_token's RS256 signature.
+ * to separately verify the id_token's signature.
+ *
+ * The refresh token from step 3 is kept with the API session (see
+ * sso_sessions.ts) and used to re-check the account with the SSO.
  */
 
 import {
-  pocketIdIssuer,
-  pocketIdClientId,
-  pocketIdClientSecret,
-  pocketIdRedirectUri,
-  pocketIdScopes,
+  ssoIssuer,
+  ssoClientId,
+  ssoClientSecret,
+  ssoRedirectUri,
+  ssoScopes,
+  ssoPostLogoutRedirectUri,
   OIDC_STATE_TTL_MINUTES,
 } from "../config";
 import { randomUrlToken, sha256Base64Url } from "../security";
@@ -35,20 +39,30 @@ import { rt } from "../runtime";
 
 /** The subset of the OIDC discovery document we use. */
 interface OidcDiscovery {
+  issuer: string;
   authorization_endpoint: string;
   token_endpoint: string;
   userinfo_endpoint: string;
   end_session_endpoint?: string;
+  revocation_endpoint?: string;
 }
 
 /** Identity claims we care about, normalized from the userinfo response. */
 export interface OidcIdentity {
   /** Stable subject identifier — the primary key we link accounts on. */
   sub: string;
+  /** The issuer that vouched for `sub`. */
+  issuer: string;
   /** preferred_username claim; the account username we match/create on. */
   preferredUsername: string;
   email: string | null;
   displayName: string | null;
+}
+
+/** Tokens kept with the API session. */
+export interface SsoTokens {
+  refreshToken: string | null;
+  idToken: string | null;
 }
 
 /** Cached discovery document (the DO is a singleton, so module scope persists
@@ -57,16 +71,14 @@ let discoveryCache: { issuer: string; doc: OidcDiscovery; fetchedAt: number } | 
 const DISCOVERY_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 function assertConfigured(): void {
-  if (!pocketIdIssuer()) throw new HttpError(500, "PocketID is not configured (POCKETID_ISSUER)");
-  if (!pocketIdClientId()) throw new HttpError(500, "PocketID is not configured (POCKETID_CLIENT_ID)");
-  if (!pocketIdClientSecret()) {
-    throw new HttpError(500, "PocketID is not configured (POCKETID_CLIENT_SECRET)");
-  }
+  if (!ssoIssuer()) throw new HttpError(500, "SSO is not configured (SSO_ISSUER)");
+  if (!ssoClientId()) throw new HttpError(500, "SSO is not configured (SSO_CLIENT_ID)");
+  if (!ssoClientSecret()) throw new HttpError(500, "SSO is not configured (SSO_CLIENT_SECRET)");
 }
 
 /** Fetch (and cache) the issuer's OpenID configuration. */
 export async function discover(): Promise<OidcDiscovery> {
-  const issuer = pocketIdIssuer();
+  const issuer = ssoIssuer();
   const now = Date.now();
   if (
     discoveryCache &&
@@ -81,14 +93,17 @@ export async function discover(): Promise<OidcDiscovery> {
   try {
     res = await fetch(url, { headers: { Accept: "application/json" } });
   } catch (err) {
-    throw new HttpError(502, `Could not reach PocketID: ${String(err)}`);
+    throw new HttpError(502, `Could not reach the SSO: ${String(err)}`);
   }
   if (!res.ok) {
-    throw new HttpError(502, `PocketID discovery failed (${res.status})`);
+    throw new HttpError(502, `SSO discovery failed (${res.status})`);
   }
   const doc = (await res.json()) as OidcDiscovery;
   if (!doc.authorization_endpoint || !doc.token_endpoint || !doc.userinfo_endpoint) {
-    throw new HttpError(502, "PocketID discovery document is missing required endpoints");
+    throw new HttpError(502, "SSO discovery document is missing required endpoints");
+  }
+  if (doc.issuer !== issuer) {
+    throw new HttpError(502, `SSO issuer mismatch: configured ${issuer}, discovered ${doc.issuer}`);
   }
   discoveryCache = { issuer, doc, fetchedAt: now };
   return doc;
@@ -124,9 +139,9 @@ export async function beginLogin(from: string): Promise<string> {
 
   const authUrl = new URL(doc.authorization_endpoint);
   authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("client_id", pocketIdClientId() as string);
-  authUrl.searchParams.set("redirect_uri", pocketIdRedirectUri());
-  authUrl.searchParams.set("scope", pocketIdScopes());
+  authUrl.searchParams.set("client_id", ssoClientId() as string);
+  authUrl.searchParams.set("redirect_uri", ssoRedirectUri());
+  authUrl.searchParams.set("scope", ssoScopes());
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("code_challenge", challenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
@@ -135,15 +150,52 @@ export async function beginLogin(from: string): Promise<string> {
 
 export interface CallbackResult {
   identity: OidcIdentity;
+  tokens: SsoTokens;
   /** The original app path to return the user to. */
   from: string;
+}
+
+/** Thrown when the SSO definitively refuses a grant (as opposed to being unreachable). */
+export class GrantRejectedError extends Error {}
+
+async function tokenRequest(params: Record<string, string>): Promise<Record<string, unknown>> {
+  const doc = await discover();
+  const body = new URLSearchParams({
+    ...params,
+    client_id: ssoClientId() as string,
+    client_secret: ssoClientSecret() as string,
+  });
+
+  let res: Response;
+  try {
+    res = await fetch(doc.token_endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+      body,
+    });
+  } catch (err) {
+    throw new HttpError(502, `SSO token request failed: ${String(err)}`);
+  }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    let error = "";
+    try {
+      error = String((JSON.parse(detail) as { error?: string }).error ?? "");
+    } catch {
+      // not JSON
+    }
+    if (error === "invalid_grant") throw new GrantRejectedError(detail);
+    throw new HttpError(res.status === 401 ? 502 : 401, `The SSO rejected the request (${res.status}). ${detail}`.trim());
+  }
+  return (await res.json()) as Record<string, unknown>;
 }
 
 /**
  * Complete the flow: validate state, exchange the code, and read identity
  * claims. Consumes the stored state (single use).
  */
-export async function completeLogin(code: string, state: string): Promise<CallbackResult> {
+export async function completeLogin(code: string, state: string, iss: string | undefined): Promise<CallbackResult> {
   assertConfigured();
 
   const key = stateKey(state);
@@ -159,56 +211,49 @@ export async function completeLogin(code: string, state: string): Promise<Callba
   }
 
   const doc = await discover();
+  // RFC 9207: when the SSO names itself on the callback it must be the one we
+  // sent the user to, so a response from a different provider can't be mixed in.
+  if (iss !== undefined && iss !== doc.issuer) {
+    throw new HttpError(400, "Login response came from an unexpected issuer.");
+  }
 
   // ---- Exchange the authorization code for tokens (direct TLS) -----------
-  const body = new URLSearchParams({
-    grant_type: "authorization_code",
-    code,
-    redirect_uri: pocketIdRedirectUri(),
-    client_id: pocketIdClientId() as string,
-    client_secret: pocketIdClientSecret() as string,
-    code_verifier: stored.verifier,
-  });
-
-  let tokenRes: Response;
+  let tokens: Record<string, unknown>;
   try {
-    tokenRes = await fetch(doc.token_endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body,
+    tokens = await tokenRequest({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: ssoRedirectUri(),
+      code_verifier: stored.verifier,
     });
   } catch (err) {
-    throw new HttpError(502, `PocketID token exchange failed: ${String(err)}`);
-  }
-  if (!tokenRes.ok) {
-    const detail = await tokenRes.text().catch(() => "");
-    throw new HttpError(401, `PocketID rejected the login (${tokenRes.status}). ${detail}`.trim());
+    if (err instanceof GrantRejectedError) {
+      throw new HttpError(401, "The SSO rejected the login. Please try again.");
+    }
+    throw err;
   }
 
-  const tokens = (await tokenRes.json()) as { access_token?: string };
-  if (!tokens.access_token) {
-    throw new HttpError(502, "PocketID did not return an access token");
+  const accessToken = typeof tokens.access_token === "string" ? tokens.access_token : "";
+  if (!accessToken) {
+    throw new HttpError(502, "The SSO did not return an access token");
   }
 
   // ---- Read identity claims from the userinfo endpoint -------------------
   let infoRes: Response;
   try {
     infoRes = await fetch(doc.userinfo_endpoint, {
-      headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: "application/json" },
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
     });
   } catch (err) {
-    throw new HttpError(502, `PocketID userinfo request failed: ${String(err)}`);
+    throw new HttpError(502, `SSO userinfo request failed: ${String(err)}`);
   }
   if (!infoRes.ok) {
-    throw new HttpError(502, `PocketID userinfo request failed (${infoRes.status})`);
+    throw new HttpError(502, `SSO userinfo request failed (${infoRes.status})`);
   }
 
   const claims = (await infoRes.json()) as Record<string, unknown>;
   const sub = typeof claims.sub === "string" ? claims.sub : "";
-  if (!sub) throw new HttpError(502, "PocketID did not return a subject identifier");
+  if (!sub) throw new HttpError(502, "The SSO did not return a subject identifier");
 
   const preferredUsername =
     (typeof claims.preferred_username === "string" && claims.preferred_username) ||
@@ -224,7 +269,53 @@ export async function completeLogin(code: string, state: string): Promise<Callba
     null;
 
   return {
-    identity: { sub, preferredUsername, email, displayName },
+    identity: { sub, issuer: doc.issuer, preferredUsername, email, displayName },
+    tokens: {
+      refreshToken: typeof tokens.refresh_token === "string" ? tokens.refresh_token : null,
+      idToken: typeof tokens.id_token === "string" ? tokens.id_token : null,
+    },
     from: stored.from || "/",
   };
+}
+
+/**
+ * Ask the SSO whether it still vouches for a session. Throws
+ * GrantRejectedError when it doesn't (account disabled, removed from this
+ * app's allowed groups, signed out everywhere); any other error means the SSO
+ * couldn't be asked.
+ */
+export async function refreshTokens(refreshToken: string): Promise<SsoTokens> {
+  const tokens = await tokenRequest({ grant_type: "refresh_token", refresh_token: refreshToken });
+  return {
+    refreshToken: typeof tokens.refresh_token === "string" ? tokens.refresh_token : null,
+    idToken: typeof tokens.id_token === "string" ? tokens.id_token : null,
+  };
+}
+
+/** Best-effort RFC 7009 revocation of a session's refresh token. */
+export async function revokeRefreshToken(refreshToken: string): Promise<void> {
+  const doc = await discover();
+  if (!doc.revocation_endpoint) return;
+  await fetch(doc.revocation_endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      token: refreshToken,
+      token_type_hint: "refresh_token",
+      client_id: ssoClientId() as string,
+      client_secret: ssoClientSecret() as string,
+    }),
+  });
+}
+
+/** Where to send the browser so the SSO session ends too. */
+export async function endSessionUrl(idToken: string | null): Promise<string | null> {
+  const doc = await discover();
+  if (!doc.end_session_endpoint) return null;
+  const url = new URL(doc.end_session_endpoint);
+  url.searchParams.set("post_logout_redirect_uri", ssoPostLogoutRedirectUri());
+  url.searchParams.set("client_id", ssoClientId() as string);
+  // With the id_token as proof, the SSO signs out without asking again.
+  if (idToken) url.searchParams.set("id_token_hint", idToken);
+  return url.toString();
 }

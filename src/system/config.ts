@@ -54,55 +54,66 @@ export function adminDisplayName(): string {
 }
 
 // ---------------------------------------------------------------------------
-// PocketID (OpenID Connect) — the ONLY login method.
+// Doughmination SSO (OpenID Connect) — the ONLY login method.
 //
 // The API is a confidential OIDC client: it runs the Authorization Code +
-// PKCE flow against a PocketID instance, then mints its own JWT (see
-// security.ts) so every existing `requireAuth` route keeps working unchanged.
+// PKCE flow against the SSO (auth-server), then mints its own JWT (see
+// security.ts) so every existing `requireAuth` route keeps working. Each JWT
+// is tied to an SSO session that is re-checked every few minutes, so accounts
+// disabled on the SSO stop working here too (see services/sso_sessions.ts).
 // ---------------------------------------------------------------------------
 
-/** PocketID issuer origin, e.g. https://doughmination.xyz. No trailing slash.
+/** SSO issuer origin, e.g. https://auth.doughmination.gay. No trailing slash.
  *  `${issuer}/.well-known/openid-configuration` must resolve. */
-export function pocketIdIssuer(): string {
-  return (rt().env.POCKETID_ISSUER ?? "").replace(/\/+$/, "");
+export function ssoIssuer(): string {
+  return (rt().env.SSO_ISSUER ?? "").replace(/\/+$/, "");
 }
 
-/** OIDC client id issued by PocketID for this application. */
-export function pocketIdClientId(): string | undefined {
-  return rt().env.POCKETID_CLIENT_ID;
+/** OIDC client id of this API's application on the SSO. */
+export function ssoClientId(): string | undefined {
+  return rt().env.SSO_CLIENT_ID;
 }
 
-/** OIDC client secret. Set via `wrangler secret put POCKETID_CLIENT_SECRET`. */
-export function pocketIdClientSecret(): string | undefined {
-  return rt().env.POCKETID_CLIENT_SECRET;
+/** OIDC client secret. Set via `wrangler secret put SSO_CLIENT_SECRET`. */
+export function ssoClientSecret(): string | undefined {
+  return rt().env.SSO_CLIENT_SECRET;
 }
 
-/** The redirect URI registered with PocketID. Must point back at the API's
- *  callback route. Defaults to `${baseUrl}/v2/plural/auth/pocketid/callback`. */
-export function pocketIdRedirectUri(): string {
-  const configured = rt().env.POCKETID_REDIRECT_URI;
+/** The redirect URI registered on the SSO. Must point back at the API's
+ *  callback route. Defaults to `${baseUrl}/v2/plural/auth/sso/callback`. */
+export function ssoRedirectUri(): string {
+  const configured = rt().env.SSO_REDIRECT_URI;
   if (configured) return configured;
-  return `${baseUrl()}/v2/plural/auth/pocketid/callback`;
+  return `${baseUrl()}/v2/plural/auth/sso/callback`;
 }
 
-/** Space-separated OIDC scopes. `openid` is mandatory; `profile` gives us
- *  preferred_username + name, `email` gives the address. */
-export function pocketIdScopes(): string {
-  return rt().env.POCKETID_SCOPES ?? "openid profile email";
+/** Space-separated OIDC scopes. `openid` is mandatory; `profile` gives
+ *  preferred_username + name, `email` the address, and `offline_access` the
+ *  refresh token sessions are re-checked with. */
+export function ssoScopes(): string {
+  return rt().env.SSO_SCOPES ?? "openid profile email offline_access";
 }
 
 /** Where the callback sends the browser once a JWT has been minted. The token
  *  is appended in the URL fragment (`#token=…`) so it never hits a server log.
- *  Defaults to the frontend's PocketID landing page. */
-export function pocketIdPostLoginUrl(): string {
-  const configured = rt().env.POCKETID_POST_LOGIN_URL;
+ *  Defaults to the frontend's login landing page. */
+export function ssoPostLoginUrl(): string {
+  const configured = rt().env.SSO_POST_LOGIN_URL;
   if (configured) return configured.replace(/\/+$/, "");
   return `${frontendUrl()}/user/login/callback`;
 }
 
 /** Where the browser is sent when login fails or is cancelled. */
-export function pocketIdLoginErrorUrl(): string {
+export function ssoLoginErrorUrl(): string {
   return `${frontendUrl()}/user/login`;
+}
+
+/** Where the SSO returns the browser after signing out. Must be registered as
+ *  a post-logout redirect URI on the SSO application. */
+export function ssoPostLogoutRedirectUri(): string {
+  const configured = rt().env.SSO_POST_LOGOUT_REDIRECT_URI;
+  if (configured) return configured;
+  return `${frontendUrl()}/`;
 }
 
 /** How long an in-flight authorization request (state + PKCE verifier) stays

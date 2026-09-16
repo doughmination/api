@@ -27,7 +27,7 @@ DISCORD_USER_TOKEN3=
 # PluralKit system token (Authorization header for api.pluralkit.me).
 SYSTEM_TOKEN=
 
-# HMAC secret used to sign the JWT the API issues after a PocketID login.
+# HMAC secret used to sign the JWT the API issues after an SSO login.
 # REQUIRED in production — set to a long random string, e.g.
 # `openssl rand -base64 48`.
 JWT_SECRET=
@@ -35,22 +35,27 @@ JWT_SECRET=
 # Cloudflare Turnstile secret (public guestbook captcha).
 TURNSTILE_SECRET=
 
-# ---- PocketID (OpenID Connect) — the ONLY login method ---------------------
-# OIDC client credentials issued by your PocketID instance. The non-secret
-# bits (POCKETID_ISSUER / REDIRECT_URI / SCOPES / POST_LOGIN_URL) live in
-# wrangler.jsonc vars. In production set these two as secrets:
-#   wrangler secret put POCKETID_CLIENT_ID
-#   wrangler secret put POCKETID_CLIENT_SECRET
-POCKETID_CLIENT_ID=
-POCKETID_CLIENT_SECRET=
+# ---- Doughmination SSO (OpenID Connect) — the ONLY login method -------------
+# In the SSO admin (/admin/clients) add a *confidential* application with:
+#   Redirect URI:             https://doughmination.uk/v2/plural/auth/sso/callback
+#   Post-logout redirect URI: https://doughmination.co.uk/
+# The non-secret bits (SSO_ISSUER / REDIRECT_URI / SCOPES / POST_LOGIN_URL /
+# POST_LOGOUT_REDIRECT_URI) live in wrangler.jsonc vars. In production:
+#   wrangler secret put SSO_CLIENT_ID
+#   wrangler secret put SSO_CLIENT_SECRET
+SSO_CLIENT_ID=
+SSO_CLIENT_SECRET=
 # OPTIONAL local overrides (otherwise inherited from wrangler.jsonc vars):
-# POCKETID_ISSUER=https://doughmination.xyz
-# POCKETID_REDIRECT_URI=http://localhost:8787/v2/plural/auth/pocketid/callback
-# POCKETID_POST_LOGIN_URL=http://localhost:3000/user/login/callback
+# SSO_ISSUER=http://localhost:8787
+# SSO_REDIRECT_URI=http://localhost:8789/v2/plural/auth/sso/callback
+# SSO_POST_LOGIN_URL=http://localhost:3000/user/login/callback
+# SSO_POST_LOGOUT_REDIRECT_URI=http://localhost:3000/
 
 # The initial owner account (ADMIN_USERNAME / ADMIN_DISPLAY_NAME in
 # wrangler.jsonc) is seeded on first request with no password. It becomes
-# usable the first time that username signs in through PocketID.
+# usable the first time that username signs in through the SSO. Accounts that
+# were linked to PocketID are taken over the same way, once: the first SSO
+# sign-in with a matching username re-links them to the SSO.
 
 # MANUAL bot token for /v2/plural/bot/* — nothing is generated any more.
 # Give this exact value to the Discord bot as DOUGH_API_TOKEN.

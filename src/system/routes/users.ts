@@ -36,7 +36,7 @@ usersRoutes.post("/users", requireAuth, requireAdmin, async (c) => {
 
   try {
     // Admin-provisioned account. It becomes usable once the person signs in
-    // through PocketID with a matching username (the link is filled in then),
+    // through the SSO with a matching username (the link is filled in then),
     // or immediately if `pocket_id` was supplied.
     const newUser = await createUser(parsed.data, c.get("user") ?? null);
     return c.json(toUserResponse(newUser));
