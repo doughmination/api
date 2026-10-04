@@ -20,7 +20,7 @@ import type {
   UnifiedUser,
   UnifiedWishlistItem,
 } from "./types";
-// import { getClientBadges } from "./discord/clientBadges"; // badges.equicord.org is down — disabled below
+import { getClientBadges } from "./discord/clientBadges";
 import {
   avatarDecorationImageUrl,
   avatarUrl,
@@ -670,7 +670,7 @@ async function buildFreshProfile(
       await Promise.all([
         buildWishlist(env, profile, ctx, force),
         buildCollectibles(env, profile, ctx, force),
-        Promise.resolve(null), // clientBadges disabled — badges.equicord.org is down
+        getClientBadges(env, id, ctx, force).catch(() => null),
         getMemberships(env, id, ctx, force).catch(() => null),
         getPronouns(env, id, ctx, force).catch(() => null),
         getTimezone(env, id, ctx, force).catch(() => null),
@@ -707,7 +707,7 @@ async function buildFreshProfile(
   if (!u) return { result: null, richStatus, retryAfter };
   const [collectibles, clientBadges, memberships, pronoundb, timezone, reviews] = await Promise.all([
     buildCollectibles(env, { user: u }, ctx, force).catch(() => null),
-    Promise.resolve(null), // clientBadges disabled — badges.equicord.org is down
+    getClientBadges(env, id, ctx, force).catch(() => null),
     getMemberships(env, id, ctx, force).catch(() => null),
     getPronouns(env, id, ctx, force).catch(() => null),
     getTimezone(env, id, ctx, force).catch(() => null),
