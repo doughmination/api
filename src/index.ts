@@ -39,7 +39,6 @@ import type {
 import { getProfile } from "./profile";
 import { GatewayManager } from "./gateway";
 import { getGuildInvite } from "./guild";
-import { getGirlsResource, isGirlsIdType } from "./girls";
 import { getMinecraftGeneral, getVanillaCapeList, normalizeMcUuid, MojangUpstreamError } from "./minecraft";
 import { getContributions } from "./contribapi";
 import { purgeAllCache } from "./cloudflare";
@@ -330,37 +329,6 @@ export default {
       }
       return json<UnifiedGuildInvite>({ success: true, data: invite });
     }
-
-    // ---- /v2/discord/girls/:idType/:id -----------------------------------
-    const gr = path.match(/^\/v2\/discord\/girls\/([\w-]+)\/(\d{1,32})$/);
-    if (gr) {
-      const [, idType, id] = gr;
-      if (!isGirlsIdType(idType)) {
-        return json(
-          {
-            success: false,
-            error: { code: "invalid_id_type", message: "idType must be one of: role, member." },
-          },
-          400,
-        );
-      }
-      try {
-        const resource = await getGirlsResource(env, idType, id, ctx, wantsForce(url));
-        if (!resource) {
-          return json(
-            { success: false, error: { code: "not_found", message: `No ${idType} with that id.` } },
-            404,
-          );
-        }
-        return json<UnifiedGirlsRole | UnifiedGirlsMember>({ success: true, data: resource });
-      } catch (err) {
-        return json(
-          { success: false, error: { code: "misconfigured", message: (err as Error).message } },
-          500,
-        );
-      }
-    }
-
     // ---- /v2/minecraft/capes  (accumulated vanilla cape catalogue) -------
     // Grows as accounts are looked up via /general — every vanilla Mojang cape
     // seen is catalogued once, keyed by texture hash.
