@@ -28,9 +28,6 @@ export interface Env {
   TRACKED_GUILD_IDS?: string;
   DISCORD_CLIENT_BUILD_NUMBER?: string;
 
-  GIRLS_GUILD_ID?: string;
-  MEMBERSHIP_GUILD_IDS?: string;
-
   PRONOUNDB_API_BASE?: string;
   TIMEZONE_API_BASE?: string;
   REVIEWDB_API_BASE?: string;
@@ -251,36 +248,6 @@ export interface UnifiedRecord {
     presence: "gateway" | "none";
     profile: "bot" | "user";
   };
-}
-
-export interface UnifiedGirlsRole {
-  id: string;
-  guild_id: string;
-  name: string;
-  color: number;
-  color_hex: string;
-  colors: { primary_color: number; secondary_color: number | null; tertiary_color: number | null } | null;
-  colors_hex: { primary_color: string; secondary_color: string | null; tertiary_color: string | null } | null;
-  hoist: boolean;
-  icon_url: string | null;
-  unicode_emoji: string | null;
-  position: number;
-  permissions: string;
-  managed: boolean;
-  mentionable: boolean;
-  member_count: number | null;
-}
-
-export interface UnifiedGirlsMember {
-  user_id: string;
-  guild_id: string;
-  nick: string | null;
-  avatar_url: string | null;
-  roles: string[];
-  joined_at: string | null;
-  premium_since: string | null;
-  pending: boolean;
-  communication_disabled_until: string | null;
 }
 
 export interface UnifiedCape {
