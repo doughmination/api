@@ -113,6 +113,8 @@ interface StoredState {
   verifier: string;
   from: string;
   createdAt: number;
+  /** Set when a native app started this login: the app's own S256 PKCE challenge. */
+  appChallenge?: string;
 }
 
 function stateKey(state: string): string {
@@ -121,9 +123,10 @@ function stateKey(state: string): string {
 
 /**
  * Build the authorization redirect URL and persist the matching PKCE verifier.
- * `from` is the app path to return the user to after login.
+ * `from` is the app path to return the user to after login. `appChallenge` is
+ * set when a native app started the login (see routes/auth.ts).
  */
-export async function beginLogin(from: string): Promise<string> {
+export async function beginLogin(from: string, appChallenge?: string): Promise<string> {
   assertConfigured();
   const doc = await discover();
 
@@ -135,6 +138,7 @@ export async function beginLogin(from: string): Promise<string> {
     verifier,
     from: from || "/",
     createdAt: Date.now(),
+    ...(appChallenge ? { appChallenge } : {}),
   } satisfies StoredState);
 
   const authUrl = new URL(doc.authorization_endpoint);
@@ -153,6 +157,19 @@ export interface CallbackResult {
   tokens: SsoTokens;
   /** The original app path to return the user to. */
   from: string;
+  /** The native app's PKCE challenge, when an app started this login. */
+  appChallenge?: string;
+}
+
+/**
+ * Whether a pending login was started by a native app, without consuming it.
+ * Lets a callback that fails before the code exchange (the SSO refusing the
+ * account, say) still send the person back to the app rather than the website.
+ */
+export async function isAppLogin(state: string | undefined): Promise<boolean> {
+  if (!state) return false;
+  const stored = await rt().store.get<StoredState | null>(stateKey(state), null);
+  return Boolean(stored?.appChallenge);
 }
 
 /** Thrown when the SSO definitively refuses a grant (as opposed to being unreachable). */
@@ -275,6 +292,7 @@ export async function completeLogin(code: string, state: string, iss: string | u
       idToken: typeof tokens.id_token === "string" ? tokens.id_token : null,
     },
     from: stored.from || "/",
+    ...(stored.appChallenge ? { appChallenge: stored.appChallenge } : {}),
   };
 }
 
