@@ -13,6 +13,15 @@
  *                              session, mint a JWT and hand the browser back to
  *                              the frontend with the token in the URL fragment.
  *   POST /auth/logout        — end the session here and at the SSO.
+ *   POST /auth/app/token     — a native app swaps its one-time code and PKCE
+ *                              verifier for the same JWT (see below).
+ *
+ * Native apps (the Plural Android app) start the same flow with
+ * /auth/sso/login?app=<S256 PKCE challenge>. Their callback never carries the
+ * JWT: it redirects to gay.doughmination.plural://auth?code=<one-time code>,
+ * and the app redeems that code within a minute at /auth/app/token with the
+ * verifier only it holds (services/app_codes.ts). Without `app` the flow is
+ * exactly the website's, unchanged.
  *
  * /auth/pocketid/login and /auth/pocketid/callback remain as aliases: the
  * published @doughmination/react-api client still builds the old login URL.
@@ -32,8 +41,10 @@ import {
   beginLogin,
   completeLogin,
   endSessionUrl,
+  isAppLogin,
   revokeRefreshToken,
 } from "../services/oidc";
+import { APP_CODE, PKCE_CHALLENGE, PKCE_VERIFIER, saveAppCode, takeAppCode } from "../services/app_codes";
 import { createSsoSession, endSsoSession } from "../services/sso_sessions";
 import { ssoPostLoginUrl, ssoLoginErrorUrl, ACCESS_TOKEN_EXPIRE_MINUTES } from "../config";
 import { createAccessToken, decodeAccessToken } from "../security";
@@ -64,8 +75,11 @@ function safeReturnPath(raw: string | undefined): string {
   return raw;
 }
 
-function loginError(c: Context<Env>, message: string) {
-  const url = new URL(ssoLoginErrorUrl());
+/** Where an app-started login lands; the Plural Android app handles this scheme. */
+const APP_REDIRECT = "gay.doughmination.plural://auth";
+
+function loginError(c: Context<Env>, message: string, app = false) {
+  const url = new URL(app ? APP_REDIRECT : ssoLoginErrorUrl());
   url.searchParams.set("error", message);
   return c.redirect(url.toString(), 302);
 }
@@ -73,30 +87,37 @@ function loginError(c: Context<Env>, message: string) {
 /** Start the SSO login: 302 to the provider's authorization endpoint. */
 async function login(c: Context<Env>) {
   const from = safeReturnPath(c.req.query("from"));
-  const authUrl = await beginLogin(from);
+  const app = c.req.query("app");
+  if (app !== undefined && !PKCE_CHALLENGE.test(app)) {
+    return c.json({ detail: "'app' must be an S256 PKCE challenge." }, 400);
+  }
+  const authUrl = await beginLogin(from, app);
   return c.redirect(authUrl, 302);
 }
 
 /** The SSO redirects the browser back here after the user authenticates. */
 async function callback(c: Context<Env>) {
-  const errorParam = c.req.query("error");
-  if (errorParam === "access_denied") {
-    return loginError(c, "Your SSO account isn't allowed to use this site.");
-  }
-  if (errorParam) return loginError(c, errorParam);
-
   const code = c.req.query("code");
   const state = c.req.query("state");
-  if (!code || !state) return loginError(c, "missing_code");
+  // Errors go back to whoever started the login: the app or the website.
+  const app = await isAppLogin(state);
+
+  const errorParam = c.req.query("error");
+  if (errorParam === "access_denied") {
+    return loginError(c, "Your SSO account isn't allowed to use this site.", app);
+  }
+  if (errorParam) return loginError(c, errorParam, app);
+
+  if (!code || !state) return loginError(c, "missing_code", app);
 
   let result;
   try {
     result = await completeLogin(code, state, c.req.query("iss"));
   } catch (err) {
-    return loginError(c, err instanceof Error ? err.message : "Login failed. Please try again.");
+    return loginError(c, err instanceof Error ? err.message : "Login failed. Please try again.", app);
   }
 
-  const { identity, tokens, from } = result;
+  const { identity, tokens, from, appChallenge } = result;
 
   let user: User;
   try {
@@ -108,7 +129,7 @@ async function callback(c: Context<Env>) {
       displayName: identity.displayName,
     });
   } catch (err) {
-    return loginError(c, err instanceof Error ? err.message : "Could not sign you in.");
+    return loginError(c, err instanceof Error ? err.message : "Could not sign you in.", app);
   }
 
   const expiresAt = Date.now() + ACCESS_TOKEN_EXPIRE_MINUTES * 60 * 1000;
@@ -125,6 +146,13 @@ async function callback(c: Context<Env>) {
     avatar_url: user.avatar_url ?? null,
   });
 
+  // An app gets a one-time code, never the token: any app can claim a custom
+  // scheme, but only the one holding the PKCE verifier can redeem the code.
+  if (appChallenge) {
+    const appCode = await saveAppCode(token, appChallenge);
+    return c.redirect(`${APP_REDIRECT}?code=${encodeURIComponent(appCode)}`, 302);
+  }
+
   // Token goes in the fragment so it never lands in a server access log or the
   // Referer header; the frontend callback page reads it from location.hash.
   const dest = new URL(ssoPostLoginUrl());
@@ -136,6 +164,23 @@ authRoutes.get("/auth/sso/login", login);
 authRoutes.get("/auth/sso/callback", callback);
 authRoutes.get("/auth/pocketid/login", login);
 authRoutes.get("/auth/pocketid/callback", callback);
+
+/** A native app redeems its one-time code (and PKCE verifier) for the JWT. */
+authRoutes.post("/auth/app/token", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { code?: unknown; verifier?: unknown };
+  const code = typeof body.code === "string" ? body.code : "";
+  const verifier = typeof body.verifier === "string" ? body.verifier : "";
+  if (!APP_CODE.test(code) || !PKCE_VERIFIER.test(verifier)) {
+    return c.json({ detail: "Body must include 'code' and a PKCE 'verifier'." }, 422);
+  }
+
+  const token = await takeAppCode(code, verifier);
+  c.header("Cache-Control", "no-store");
+  if (!token) {
+    return c.json({ detail: "That sign-in code is invalid or has expired. Please sign in again." }, 400);
+  }
+  return c.json({ access_token: token, token_type: "bearer" });
+});
 
 /**
  * End the caller's session. Accepts an expired or already-revoked token so a
