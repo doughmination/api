@@ -141,7 +141,7 @@ function buildSpec(): JsonObj {
       if (params.length) op.parameters = params;
       const sec = security(ep.auth);
       if (sec) op.security = sec;
-      if (ep.m === "POST" || ep.m === "PUT") {
+      if (ep.m === "POST" || ep.m === "PUT" || ep.m === "PATCH") {
         op.requestBody = {
           required: false,
           content: { "application/json": { schema: { type: "object" } } },

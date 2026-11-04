@@ -43,3 +43,14 @@ export function verifyBatteryKey(providedKey: string): boolean {
   }
   return valid;
 }
+
+// ---- Guestbook moderation keys ----------------------------------------------
+
+export function verifyGuestbookKey(providedKey: string): boolean {
+  if (!providedKey) return false;
+  let valid = false;
+  for (const key of (rt().env.GUESTBOOK_ADMIN_KEYS ?? "").split(",").map((k) => k.trim())) {
+    if (key && constantTimeStringEqual(key, providedKey)) valid = true;
+  }
+  return valid;
+}

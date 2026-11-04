@@ -16,7 +16,7 @@ import { decodeAccessToken } from "../security";
 import { HttpError } from "../errors";
 import { getUserByUsername } from "../services/users";
 import { currentSsoSession } from "../services/sso_sessions";
-import { verifyBotToken, verifyBatteryKey } from "../services/keys";
+import { verifyBotToken, verifyBatteryKey, verifyGuestbookKey } from "../services/keys";
 import type { User } from "../models";
 
 function extractBearer(c: Context<Env>): string | undefined {
@@ -121,5 +121,22 @@ export async function verifyBatteryAccess(c: Context<Env>, next: Next): Promise<
   const key = c.req.header("X-Battery-Key");
   if (!key) throw new HttpError(401, "Missing X-Battery-Key header");
   if (!verifyBatteryKey(key)) throw new HttpError(401, "Invalid battery API key");
+  await next();
+}
+
+/**
+ * Guestbook moderation: either the X-Guestbook-Key header (the website's
+ * server, after its own SSO login) or a signed-in admin's bearer token.
+ */
+export async function verifyGuestbookAdmin(c: Context<Env>, next: Next): Promise<void> {
+  const key = c.req.header("X-Guestbook-Key");
+  if (key) {
+    if (!verifyGuestbookKey(key)) throw new HttpError(401, "Invalid guestbook key");
+    await next();
+    return;
+  }
+  const user = await resolveCurrentUser(c);
+  if (!user.is_admin) throw new HttpError(403, "Admin privileges required");
+  c.set("user", user);
   await next();
 }

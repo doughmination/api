@@ -65,6 +65,11 @@ DOUGH_BOT_TOKEN=
 # `X-Battery-Key` header to POST /v2/battery.
 BATTERY_API_KEYS=
 
+# MANUAL guestbook moderation key(s), comma-separated. The website's server
+# sends it as `X-Guestbook-Key` to /v2/guestbook/admin/*. Give the same value
+# to the website as GUESTBOOK_ADMIN_KEY. e.g. `openssl rand -base64 48`.
+GUESTBOOK_ADMIN_KEYS=
+
 # ---- contribapi (/v2/contribapi) — merged git contribution heatmaps --------
 # Codeberg/Forgejo needs no token for the public heatmap endpoint.
 CODEBERG_USERNAME=

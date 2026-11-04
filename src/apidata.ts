@@ -6,7 +6,7 @@
  * change — nothing else needs editing.
  * ===================================================================== */
 
-export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "WS";
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "WS";
 export type AuthKind = "public" | "auth" | "admin" | "owner" | "pet" | "jwt" | "bot" | "key";
 
 export interface EndpointDef {
@@ -237,13 +237,24 @@ export const GROUPS: GroupDef[] = [
         desc: "List entries, newest first → { entries: [{ id, name, message, website, ts }], total, limit, offset }.",
         params: [["limit", "Optional. 1–200, default 50."], ["offset", "Optional. ≥0, default 0."]] },
       { m: "POST", path: "/guestbook", auth: "public",
-        desc: "Sign the guestbook. Honeypot (url2) + Turnstile (when configured) + per-IP rate limit (60s). Returns { ok, entry } with the new UID.",
+        desc: "Sign the guestbook. Honeypot (url2) + Turnstile (when configured) + per-IP rate limit (60s). Returns 201 { ok, entry } with the new UID, or 202 { ok, pending: true } when the word filter holds it for review.",
         example: 'POST body: { "name": "Clove", "message": "hi!", "website": "https://…", "turnstileToken": "…" }' },
       { m: "DELETE", path: "/guestbook/:id", auth: "key",
         desc: "Delete an entry by its UID. Returns 404 if not found. Send the X-Battery-Key header.",
         params: [["id", "The entry's UID (required)."]] },
       { m: "POST", path: "/guestbook/import", auth: "key",
         desc: "Migration import: insert an entry with a fresh UID, bypassing captcha + rate limit. Send the X-Battery-Key header. Body { name, message, website? }." },
+      { m: "GET", path: "/guestbook/admin/entries?status=pending", auth: "admin",
+        desc: "Moderation list, including held entries and the blocklist terms that flagged them → { entries, total, pending }. Send X-Guestbook-Key or an admin bearer token.",
+        params: [["status", "Optional. pending, approved or all (default)."]] },
+      { m: "PATCH", path: "/guestbook/admin/entries/:id", auth: "admin",
+        desc: "Approve, re-hold or edit an entry. Body { status?: 'approved' | 'pending', name?, message?, website? }." },
+      { m: "DELETE", path: "/guestbook/admin/entries/:id", auth: "admin",
+        desc: "Delete an entry by its UID." },
+      { m: "GET", path: "/guestbook/admin/blocklist", auth: "admin",
+        desc: "The word blocklist → { words }. Matching ignores case, accents, spacing, punctuation, repeated letters and common lookalikes (b@d, 8ad, Cyrillic а)." },
+      { m: "PUT", path: "/guestbook/admin/blocklist", auth: "admin",
+        desc: "Replace the blocklist. Body { words: string[] }. Only affects new posts." },
     ],
   },
   {

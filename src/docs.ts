@@ -141,6 +141,7 @@ export const DOCS_HTML = `<!doctype html>
   .m.GET    { background: rgba(166,227,161,.14); color: var(--get);  border-color: rgba(166,227,161,.35); }
   .m.POST   { background: rgba(249,226,175,.14); color: var(--post); border-color: rgba(249,226,175,.35); }
   .m.PUT    { background: rgba(137,180,250,.16); color: var(--put);  border-color: rgba(137,180,250,.35); }
+  .m.PATCH  { background: rgba(137,180,250,.16); color: var(--put);  border-color: rgba(137,180,250,.35); }
   .m.DELETE { background: rgba(243,139,168,.16); color: var(--del);  border-color: rgba(243,139,168,.35); }
   .m.WS     { background: rgba(203,166,247,.16); color: var(--ws);   border-color: rgba(203,166,247,.35); }
 

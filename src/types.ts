@@ -16,6 +16,7 @@ export interface Env {
   ADMIN_DISPLAY_NAME?: string;
   DOUGH_BOT_TOKEN?: string;
   BATTERY_API_KEYS?: string;
+  GUESTBOOK_ADMIN_KEYS?: string;
   BASE_URL?: string;
   CORS_ORIGINS?: string;
 

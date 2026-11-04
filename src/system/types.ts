@@ -66,6 +66,8 @@ export interface SystemEnv {
   DOUGH_BOT_TOKEN?: string;
   /** Comma-separated device battery-report keys (X-Battery-Key header). */
   BATTERY_API_KEYS?: string;
+  /** Comma-separated guestbook moderation keys (X-Guestbook-Key header). */
+  GUESTBOOK_ADMIN_KEYS?: string;
 
   // ---- Misc --------------------------------------------------------------
   /** Public base URL, used in a few absolute links. */
