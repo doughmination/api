@@ -25,15 +25,19 @@ const LOC_LEGACY_JSON_URL =
 // Enka's curated loc store omits artifact set names, so those come from
 // Project Amber (Hoyo data mirror) instead — keyed by numeric set id.
 const RELIC_SETS_JSON_URL = "https://gi.yatta.moe/api/v2/en/reliquary";
-// Icon URLs are handed out pointing at our own CDN, which proxies + edge-caches
-// enka.network/ui/* (see cdn/functions/genshin/ui/[[path]].ts) so heavy card
-// rendering never hammers Enka directly.
-const ICON_BASE = "https://m.doughmination.gay/genshin/ui";
+// Icon URLs point at our own copies in the CDN bucket, one folder per kind.
+// cdn/scripts/syncGenshin.ts fills the bucket from enka.network/ui, so nothing
+// here ever hits Enka for images. Re-run it after each game patch.
+const ASSET_BASE = "https://raw.doughmination.gay/genshin";
+const CHARACTER_ICON_BASE = `${ASSET_BASE}/characters`;
+const WEAPON_ICON_BASE = `${ASSET_BASE}/weapons`;
+const ARTIFACT_ICON_BASE = `${ASSET_BASE}/artifacts`;
 const ENKA_USER_AGENT = `doughmination-genshin-roster/1.0 (+https://doughmination.uk; contact: ${ABUSE_CONTACT})`;
 
 const CATALOG_TTL_SECONDS = 60 * 60 * 24;
 const ROSTER_MIN_TTL_SECONDS = 30;
-const CATALOG_KEY = "genshin:catalog:v2";
+// v3: image links moved to the bucket folders, so the cached v2 catalog is stale
+const CATALOG_KEY = "genshin:catalog:v3";
 const RELIC_SETS_KEY = "genshin:relicsets:v1";
 const LOC_KEY = "genshin:loc:v2";
 const rawKey = (uid: string) => `genshin:raw:${uid}`;
@@ -265,7 +269,7 @@ type Catalog = Record<string, CatalogEntry>;
 
 function gachaArtUrl(fullIcon: string): string {
   if (!fullIcon.startsWith("UI_AvatarIcon_")) return "";
-  return `${ICON_BASE}/${fullIcon.replace("UI_AvatarIcon_", "UI_Gacha_AvatarImg_")}.png`;
+  return `${CHARACTER_ICON_BASE}/${fullIcon.replace("UI_AvatarIcon_", "UI_Gacha_AvatarImg_")}.png`;
 }
 
 function iconStem(raw: string | undefined): string {
@@ -282,17 +286,17 @@ const INJECTED_CHARACTERS: Record<string, CatalogEntry> = {
     name: "Manekin",
     element: "All",
     rarity: 5,
-    iconUrl: `${ICON_BASE}/UI_AvatarIcon_MannequinBoy.png`,
-    sideIconUrl: `${ICON_BASE}/UI_AvatarIcon_Side_MannequinBoy.png`,
-    gachaIconUrl: `${ICON_BASE}/UI_Gacha_AvatarImg_MannequinBoy.png`,
+    iconUrl: `${CHARACTER_ICON_BASE}/UI_AvatarIcon_MannequinBoy.png`,
+    sideIconUrl: `${CHARACTER_ICON_BASE}/UI_AvatarIcon_Side_MannequinBoy.png`,
+    gachaIconUrl: `${CHARACTER_ICON_BASE}/UI_Gacha_AvatarImg_MannequinBoy.png`,
   },
   "10000118": {
     name: "Manekina",
     element: "All",
     rarity: 5,
-    iconUrl: `${ICON_BASE}/UI_AvatarIcon_MannequinGirl.png`,
-    sideIconUrl: `${ICON_BASE}/UI_AvatarIcon_Side_MannequinGirl.png`,
-    gachaIconUrl: `${ICON_BASE}/UI_Gacha_AvatarImg_MannequinGirl.png`,
+    iconUrl: `${CHARACTER_ICON_BASE}/UI_AvatarIcon_MannequinGirl.png`,
+    sideIconUrl: `${CHARACTER_ICON_BASE}/UI_AvatarIcon_Side_MannequinGirl.png`,
+    gachaIconUrl: `${CHARACTER_ICON_BASE}/UI_Gacha_AvatarImg_MannequinGirl.png`,
   },
 };
 
@@ -319,8 +323,8 @@ async function getCatalog(env: Env, ctx?: ExecutionContext, force = false): Prom
       name: override?.name ?? name ?? `Traveler ${id}`,
       element: override?.element ?? ELEMENT_NAMES[entry.Element ?? ""] ?? entry.Element ?? "Unknown",
       rarity: entry.QualityType?.startsWith("QUALITY_ORANGE") ? 5 : 4,
-      iconUrl: fullIcon ? `${ICON_BASE}/${fullIcon}.png` : "",
-      sideIconUrl: sideIcon ? `${ICON_BASE}/${sideIcon}.png` : "",
+      iconUrl: fullIcon ? `${CHARACTER_ICON_BASE}/${fullIcon}.png` : "",
+      sideIconUrl: sideIcon ? `${CHARACTER_ICON_BASE}/${sideIcon}.png` : "",
       gachaIconUrl: gachaArtUrl(fullIcon),
     };
   }
@@ -449,7 +453,7 @@ function buildWeapon(equip: RawEquip, loc: RawLoc): UnifiedGenshinWeapon | null 
     refinement: refine + 1,
     base_stat: toStat(equip.flat.weaponStats?.[0]),
     sub_stat: toStat(equip.flat.weaponStats?.[1]),
-    icon_url: equip.flat.icon ? `${ICON_BASE}/${equip.flat.icon}.png` : "",
+    icon_url: equip.flat.icon ? `${WEAPON_ICON_BASE}/${equip.flat.icon}.png` : "",
   };
 }
 
@@ -477,7 +481,7 @@ function buildArtifact(
     sub_stats: (equip.flat.reliquarySubstats ?? [])
       .map((s) => toStat(s))
       .filter((s): s is UnifiedGenshinStat => s !== null),
-    icon_url: equip.flat.icon ? `${ICON_BASE}/${equip.flat.icon}.png` : "",
+    icon_url: equip.flat.icon ? `${ARTIFACT_ICON_BASE}/${equip.flat.icon}.png` : "",
   };
 }
 
