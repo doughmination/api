@@ -379,8 +379,8 @@ export interface UnifiedGenshinCharacterDetail extends UnifiedGenshinCharacter {
   art_url: string;
   constellation: number;
   friendship: number | null;
-  // Normal attack / elemental skill / elemental burst levels. Null when the
-  // character isn't in the live showcase.
+  // Normal attack / elemental skill / elemental burst levels. Null when no
+  // build has ever been seen for the character.
   talents: UnifiedGenshinTalents | null;
   // Totalled sheet stats (Max HP, ATK, DEF, EM, CRIT, ER, top DMG bonus).
   stats: UnifiedGenshinStat[];
@@ -388,6 +388,9 @@ export interface UnifiedGenshinCharacterDetail extends UnifiedGenshinCharacter {
   artifacts: UnifiedGenshinArtifact[];
   // Active 2-/4-piece artifact set bonuses.
   sets: UnifiedGenshinArtifactSetBonus[];
+  // When the build above was stored. With tracked false it is the last build
+  // seen before the character left the showcase. Null when none was ever seen.
+  build_saved_at: number | null;
   updated_at: number;
 }
 

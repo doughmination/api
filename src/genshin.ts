@@ -42,6 +42,8 @@ const RELIC_SETS_KEY = "genshin:relicsets:v1";
 const LOC_KEY = "genshin:loc:v2";
 const rawKey = (uid: string) => `genshin:raw:${uid}`;
 const ledgerKey = (uid: string) => `genshin:owned:${uid}`;
+// v1: bump when the stored build shape or its image links change
+const buildsKey = (uid: string) => `genshin:builds:v1:${uid}`;
 
 const ELEMENT_NAMES: Record<string, string> = {
   Fire: "Pyro",
@@ -552,6 +554,97 @@ function buildSets(artifacts: UnifiedGenshinArtifact[]): UnifiedGenshinArtifactS
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
+// --- saved builds ---------------------------------------------------------------
+// Enka only shows the characters in the live showcase. The last build seen for
+// each character is kept here, so one that leaves the showcase still has its
+// stats, weapon and artifacts to show.
+
+interface SavedBuild {
+  friendship: number | null;
+  talents: UnifiedGenshinTalents | null;
+  stats: UnifiedGenshinStat[];
+  weapon: UnifiedGenshinWeapon | null;
+  artifacts: UnifiedGenshinArtifact[];
+  sets: UnifiedGenshinArtifactSetBonus[];
+}
+
+interface StoredBuild extends SavedBuild {
+  // When this exact build was first stored
+  saved_at: number;
+}
+
+interface BuildStore {
+  uid: string;
+  characters: Record<string, StoredBuild>;
+}
+
+const NO_BUILD: SavedBuild = {
+  friendship: null,
+  talents: null,
+  stats: [],
+  weapon: null,
+  artifacts: [],
+  sets: [],
+};
+
+function buildFromAvatar(
+  entry: EnkaAvatarInfo,
+  loc: RawLoc,
+  relicSets: RelicSetNames,
+): SavedBuild {
+  const weaponEquip = entry.equipList?.find((e) => e.weapon);
+  const artifacts = (entry.equipList ?? [])
+    .filter((e) => e.reliquary)
+    .map((e) => buildArtifact(e, loc, relicSets))
+    .filter((a): a is UnifiedGenshinArtifact => a !== null);
+
+  return {
+    friendship: entry.fetterInfo?.expLevel ?? null,
+    talents: buildTalents(entry.skillLevelMap),
+    stats: buildStats(entry.fightPropMap),
+    weapon: weaponEquip ? buildWeapon(weaponEquip, loc) : null,
+    artifacts,
+    sets: buildSets(artifacts),
+  };
+}
+
+async function loadBuilds(env: Env, uid: string): Promise<BuildStore> {
+  const stored = (await env.PROFILE_CACHE.get(buildsKey(uid), "json")) as BuildStore | null;
+  if (stored && stored.characters) return stored;
+  return { uid, characters: {} };
+}
+
+async function saveBuilds(env: Env, store: BuildStore, ctx?: ExecutionContext): Promise<void> {
+  const write = env.PROFILE_CACHE.put(buildsKey(store.uid), JSON.stringify(store));
+  if (ctx) ctx.waitUntil(write);
+  else await write;
+}
+
+// The stored copy without its timestamp, for comparing against a live build
+function withoutSavedAt(stored: StoredBuild): SavedBuild {
+  const { saved_at: _savedAt, ...build } = stored;
+  return build;
+}
+
+// Only writes when a build actually changed, so an unchanged showcase costs no KV write
+function mergeBuilds(store: BuildStore, live: Map<string, SavedBuild>, now: number): boolean {
+  let changed = false;
+  for (const [id, build] of live) {
+    const existing = store.characters[id];
+    if (existing && JSON.stringify(withoutSavedAt(existing)) === JSON.stringify(build)) continue;
+    store.characters[id] = { ...build, saved_at: now };
+    changed = true;
+  }
+  return changed;
+}
+
+// What a detail response carries for a character that is not in the live showcase
+function savedBuildFields(store: BuildStore, heroId: string): SavedBuild & { build_saved_at: number | null } {
+  const stored = store.characters[heroId];
+  if (!stored) return { ...NO_BUILD, build_saved_at: null };
+  return { ...withoutSavedAt(stored), build_saved_at: stored.saved_at };
+}
+
 const LEDGER_TOUCH_MS = 1000 * 60 * 5;
 
 interface LedgerEntry {
@@ -663,10 +756,14 @@ export async function getGenshinRoster(
 
   let raw: EnkaUidResponse;
   let catalog: Catalog;
+  let loc: RawLoc;
+  let relicSets: RelicSetNames;
   try {
     const data = await getUidData(env, uid, ctx, force);
     raw = data.raw;
     catalog = data.catalog;
+    loc = data.loc;
+    relicSets = data.relicSets;
   } catch (err) {
     if (Object.keys(ledger.characters).length === 0) throw err;
     const staleCatalog = await getCatalog(env, ctx);
@@ -704,6 +801,17 @@ export async function getGenshinRoster(
   const live: LiveOwned[] = [];
   for (const [id, level] of liveLevels) if (catalog[id]) live.push({ id, level });
   if (mergeLedger(ledger, live, now)) await saveLedger(env, ledger, ctx);
+
+  // Keep the build of everyone in the showcase, even if their page is never opened
+  if (full && full.length > 0) {
+    const liveBuilds = new Map<string, SavedBuild>();
+    for (const entry of full) {
+      const id = String(entry.avatarId);
+      if (catalog[id]) liveBuilds.set(id, buildFromAvatar(entry, loc, relicSets));
+    }
+    const builds = await loadBuilds(env, uid);
+    if (mergeBuilds(builds, liveBuilds, now)) await saveBuilds(env, builds, ctx);
+  }
 
   const characters = buildRosterCharacters(catalog, ledger, liveLevels);
 
@@ -758,12 +866,7 @@ export async function getGenshinCharacterDetail(
       last_seen: led.last_seen,
       level: led.level,
       constellation: led.constellation,
-      friendship: null,
-      talents: null,
-      stats: [],
-      weapon: null,
-      artifacts: [],
-      sets: [],
+      ...savedBuildFields(await loadBuilds(env, uid), heroId),
       updated_at: ledger.updated_at,
     };
   }
@@ -792,12 +895,7 @@ export async function getGenshinCharacterDetail(
         last_seen: led.last_seen,
         level: led.level,
         constellation: led.constellation,
-        friendship: null,
-        talents: null,
-        stats: [],
-        weapon: null,
-        artifacts: [],
-        sets: [],
+        ...savedBuildFields(await loadBuilds(env, uid), heroId),
       };
     }
     return {
@@ -807,12 +905,8 @@ export async function getGenshinCharacterDetail(
       last_seen: null,
       level: null,
       constellation: 0,
-      friendship: null,
-      talents: null,
-      stats: [],
-      weapon: null,
-      artifacts: [],
-      sets: [],
+      ...NO_BUILD,
+      build_saved_at: null,
     };
   }
 
@@ -824,11 +918,22 @@ export async function getGenshinCharacterDetail(
     await saveLedger(env, ledger, ctx);
   }
 
-  const weaponEquip = entry?.equipList?.find((e) => e.weapon);
-  const artifactEquips = (entry?.equipList ?? []).filter((e) => e.reliquary);
-  const artifacts = artifactEquips
-    .map((e) => buildArtifact(e, loc, relicSets))
-    .filter((a): a is UnifiedGenshinArtifact => a !== null);
+  // Enka lists the character but hides the detail: fall back to the saved build
+  if (!entry) {
+    return {
+      ...base,
+      owned: true,
+      tracked: true,
+      last_seen: now,
+      level: found.level,
+      constellation: ledger.characters[heroId]?.constellation ?? 0,
+      ...savedBuildFields(await loadBuilds(env, uid), heroId),
+    };
+  }
+
+  const build = buildFromAvatar(entry, loc, relicSets);
+  const builds = await loadBuilds(env, uid);
+  if (mergeBuilds(builds, new Map([[heroId, build]]), now)) await saveBuilds(env, builds, ctx);
 
   return {
     ...base,
@@ -837,12 +942,8 @@ export async function getGenshinCharacterDetail(
     last_seen: now,
     level: found.level,
     constellation,
-    friendship: entry?.fetterInfo?.expLevel ?? null,
-    talents: buildTalents(entry?.skillLevelMap),
-    stats: buildStats(entry?.fightPropMap),
-    weapon: weaponEquip ? buildWeapon(weaponEquip, loc) : null,
-    artifacts,
-    sets: buildSets(artifacts),
+    ...build,
+    build_saved_at: now,
   };
 }
 
