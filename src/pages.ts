@@ -9,7 +9,7 @@ import { ABUSE_CONTACT } from "./abuse";
 
 const FOOTER_LINKS = `<a href="/docs">API reference</a> · <a href="/abuse">Abuse</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a>`;
 
-const AVATAR = "https://m.doughmination.gay/img/avatars/favicon.png";
+const AVATAR = "https://doughmination.uk/favicon.png";
 
 const DEFAULT_OG_DESCRIPTION =
   "Universal API: live Discord presence, profiles and Genshin roster tracking.";
