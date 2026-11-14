@@ -5,10 +5,10 @@
  */
 
 /**
- * SystemState — the Durable Object that IS the old backend "process".
+ * SystemState — the Durable Object behind devices, guestbook and counters.
  *
- *  - Holds all persistent state (users, tags, statuses, battery, mental
- *    state) in DO key-value storage via a small Store adapter.
+ *  - Holds their state (battery levels, guestbook entries) in DO key-value
+ *    storage via a small Store adapter.
  *  - Owns the visit-counter SQLite tables (DO embedded SQLite).
  *  - Is the SINGLE realtime WebSocket hub for the whole API, at /v2/ws,
  *    using the hibernatable WebSocket API so idle sockets don't keep the DO
@@ -53,9 +53,8 @@ class DoStore implements Store {
 const WS_PATH = "/v2/ws";
 /** Internal DO-to-DO path GatewayManager relays presence updates to. */
 const PRESENCE_RELAY_PATH = "/internal/presence";
-/** Internal paths the Hub entrypoint (index.ts) calls for the system site. */
+/** Internal path the Hub entrypoint (index.ts) calls for the system site. */
 export const BROADCAST_PATH = "/internal/broadcast";
-export const EXPORT_PATH = "/internal/export";
 
 /** Per-socket presence subscription, persisted on the hibernatable socket via
  *  serializeAttachment so it survives eviction. Presence events are filtered
@@ -109,12 +108,6 @@ export class SystemState implements DurableObject {
     if (url.pathname === BROADCAST_PATH && req.method === "POST") {
       this.broadcast(await req.json());
       return new Response(null, { status: 204 });
-    }
-
-    // Every stored key, for the system site's one-time import
-    if (url.pathname === EXPORT_PATH && req.method === "GET") {
-      const entries = await this.state.storage.list();
-      return Response.json(Object.fromEntries(entries));
     }
 
     return systemApp.fetch(req, {} as never);

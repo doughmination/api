@@ -5,12 +5,11 @@
  */
 
 /**
- * Environment bindings + secrets consumed by the Doughmination system API.
+ * Environment bindings + secrets consumed by the devices / guestbook / counter API.
  *
  * These are a subset of the Worker's full `Env` (see ../types.ts) — the
  * SystemState DO receives the same env object the Worker does. All auth
- * keys are now set MANUALLY (secrets / vars); nothing is generated on
- * first run any more.
+ * keys are set MANUALLY (secrets / vars).
  */
 export interface SystemEnv {
   // ---- Durable Object bindings -------------------------------------------
@@ -20,50 +19,15 @@ export interface SystemEnv {
    *  /v2/ws hub, so it pulls presence snapshots from here for INIT_STATE and
    *  receives live PRESENCE_UPDATE relays from it. */
   GATEWAY: DurableObjectNamespace;
+  /** The system site Worker (doughmination.co.uk). Guestbook moderation
+   *  checks admin tokens against it. */
+  SITE: Fetcher;
 
-  // ---- PluralKit ---------------------------------------------------------
-  /** PluralKit system token (Authorization header for api.pluralkit.me). */
-  SYSTEM_TOKEN?: string;
-  /** Seconds to cache PluralKit responses in-memory. Default 30. */
-  CACHE_TTL?: string;
-
-  // ---- Auth --------------------------------------------------------------
-  /** HMAC secret for signing the JWT the API issues after an SSO login.
-   *  REQUIRED in production. */
-  JWT_SECRET?: string;
+  // ---- Secrets -------------------------------------------------------------
   /** Cloudflare Turnstile secret (public guestbook captcha). */
   TURNSTILE_SECRET?: string;
   /** Back-compat alias for the original (typo'd) env name. */
   TURNSILE_SECRET?: string;
-
-  // ---- Doughmination SSO (OIDC) — the only login method -----------------
-  /** Issuer origin, e.g. https://auth.doughmination.gay (no trailing slash). */
-  SSO_ISSUER?: string;
-  /** OIDC client id of this API's application on the SSO. */
-  SSO_CLIENT_ID?: string;
-  /** OIDC client secret — set with `wrangler secret put SSO_CLIENT_SECRET`. */
-  SSO_CLIENT_SECRET?: string;
-  /** Registered redirect URI. Defaults to
-   *  `${BASE_URL}/v2/plural/auth/sso/callback`. */
-  SSO_REDIRECT_URI?: string;
-  /** Space-separated scopes. Defaults to "openid profile email offline_access". */
-  SSO_SCOPES?: string;
-  /** Frontend page the callback hands the minted JWT to (in the URL fragment).
-   *  Defaults to `${FRONTEND_URL}/user/login/callback`. */
-  SSO_POST_LOGIN_URL?: string;
-  /** Where the SSO sends the browser after logout. Defaults to `${FRONTEND_URL}/`. */
-  SSO_POST_LOGOUT_REDIRECT_URI?: string;
-
-  // ---- Initial owner seed (only used when no users exist yet) ------------
-  ADMIN_USERNAME?: string;
-  ADMIN_DISPLAY_NAME?: string;
-  /** Owner's contact email. Backfilled onto the owner account on read if it
-   *  doesn't have one yet. */
-  ADMIN_EMAIL?: string;
-
-  // ---- Manual API keys (replaces generate-on-first-run) ------------------
-  /** Static bearer token the Discord bot uses for /api/bot/*. */
-  DOUGH_BOT_TOKEN?: string;
   /** Comma-separated device battery-report keys (X-Battery-Key header). */
   BATTERY_API_KEYS?: string;
   /** Comma-separated guestbook moderation keys (X-Guestbook-Key header). */
@@ -80,7 +44,3 @@ export interface SystemEnv {
    *  leaves the counter open, so any well-formed id registers on first hit. */
   COUNTER_SITE_IDS?: string;
 }
-
-/** A member object from PluralKit is large and loosely typed upstream. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type PKObject = Record<string, any>;

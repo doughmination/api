@@ -50,6 +50,13 @@
 		"html_handling": "none",
 		"not_found_handling": "none"
 	},
+	// The system site Worker. Guestbook moderation checks admin tokens against it
+	"services": [
+		{
+			"binding": "SITE",
+			"service": "doughmination-system"
+		}
+	],
 	"triggers": {
 		"crons": [
 			"*/2 * * * *"
@@ -69,22 +76,10 @@
 		"REVIEWDB_API_BASE": "https://manti.vendicated.dev/api/reviewdb",
 		"REVIEWDB_MAX": "25",
 
-		"CACHE_TTL": "30",
-		"ADMIN_USERNAME": "clove",
-		"ADMIN_DISPLAY_NAME": "Administrator",
-		"ADMIN_EMAIL": "admin@doughmination.win",
 		"BASE_URL": "https://doughmination.uk",
 		"CORS_ORIGINS": "",
 		"COUNTER_SITE_IDS": "is.doughmination.gay",
 		"FRONTEND_URL": "https://doughmination.co.uk",
-
-		// ---- Doughmination SSO (auth-server) -----
-		// Secrets: wrangler secret put SSO_CLIENT_ID / SSO_CLIENT_SECRET
-		"SSO_ISSUER": "https://auth.doughmination.gay",
-		"SSO_REDIRECT_URI": "https://doughmination.uk/v2/plural/auth/sso/callback",
-		"SSO_SCOPES": "openid profile email offline_access",
-		"SSO_POST_LOGIN_URL": "https://doughmination.co.uk/user/login/callback",
-		"SSO_POST_LOGOUT_REDIRECT_URI": "https://doughmination.co.uk/",
 
 	}
 }

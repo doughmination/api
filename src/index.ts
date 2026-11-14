@@ -7,7 +7,6 @@
  *   /v2/discord/*     — Discord users (profile + badges + presence + equipped
  *                       collectibles, one merged record), guilds, girls, status
  *                       (the old /v2/lanyard/* presence routes now live here)
- *   /v2/plural/*      — Doughmination system API   (SystemState DO)
  *   /v2/devices/*     — device state (battery, etc.) (SystemState DO)
  *   /v2/guestbook/*   — public guestbook            (SystemState DO)
  *   /v2/counter/*     — per-site visit counters    (SystemState DO)
@@ -18,7 +17,7 @@
  * Two Durable Objects:
  *   GATEWAY  — singleton holding the Discord gateway socket (presence). Relays
  *              presence updates to SYSTEM for fan-out; no browser sockets.
- *   SYSTEM   — singleton running the Doughmination API + the single /v2/ws hub.
+ *   SYSTEM   — singleton running devices, guestbook, counters + the single /v2/ws hub.
  * ===================================================================== */
 
 import type {
@@ -53,7 +52,7 @@ import { DOCS_HTML } from "./docs";
 import { ABUSE_HTML, ABUSE_CONTACT, securityTxt } from "./abuse";
 import { LANDING_HTML, TERMS_HTML, PRIVACY_HTML, NOT_FOUND_HTML } from "./pages";
 import { OPENAPI_JSON } from "./openapi";
-import { SystemState, BROADCAST_PATH, EXPORT_PATH } from "./system/do";
+import { SystemState, BROADCAST_PATH } from "./system/do";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
 export { GatewayManager, SystemState };
@@ -69,13 +68,6 @@ export class Hub extends WorkerEntrypoint<Env> {
       method: "POST",
       body: JSON.stringify(data),
     });
-  }
-
-  /** The old SystemState store, every key, for the site's one-time import. */
-  async exportLegacy(): Promise<Record<string, unknown>> {
-    const res = await systemStub(this.env).fetch(`https://do${EXPORT_PATH}`);
-    if (!res.ok) throw new Error(`Legacy export failed: ${res.status}`);
-    return (await res.json()) as Record<string, unknown>;
   }
 }
 
@@ -163,8 +155,6 @@ const ID_RE = /^\d{16,21}$/;
 function isSystemPath(path: string): boolean {
   return (
     path === "/v2/ws" ||
-    path === "/v2/plural" ||
-    path.startsWith("/v2/plural/") ||
     path === "/v2/devices" ||
     path.startsWith("/v2/devices/") ||
     path === "/v2/guestbook" ||
@@ -207,7 +197,7 @@ export default {
 
     const path = url.pathname.replace(/\/+$/, "") || "/";
 
-    // ---- SystemState DO (plural / devices / counter / realtime) ----------
+    // ---- SystemState DO (devices / guestbook / counter / realtime) -------
     // Forwarded first, and untouched, so its Hono CORS + the single realtime
     // WebSocket upgrade (/v2/ws) work end-to-end.
     if (isSystemPath(path)) {
@@ -309,7 +299,7 @@ export default {
         success: true,
         data: {
           service: "Doughmination API",
-          description: "Universal API: live Discord presence + profiles + plural system + Genshin roster tracking.",
+          description: "Universal API: live Discord presence + profiles + Genshin roster tracking.",
           licence: "DASL-1.0",
           repository_url: "https://github.com/doughmination/api",
           docs: "/docs",

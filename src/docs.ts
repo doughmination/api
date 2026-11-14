@@ -23,11 +23,11 @@ export const DOCS_HTML = `<!doctype html>
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Doughmination API" />
 <meta property="og:title" content="Doughmination API reference" />
-<meta property="og:description" content="Endpoint reference for the Doughmination API — Discord presence, profiles, plural system and Genshin roster." />
+<meta property="og:description" content="Endpoint reference for the Doughmination API — Discord presence, profiles and Genshin roster." />
 <meta property="og:image" content="https://m.doughmination.gay/img/avatars/favicon.png" />
 <meta name="twitter:card" content="summary" />
 <meta name="twitter:title" content="Doughmination API reference" />
-<meta name="twitter:description" content="Endpoint reference for the Doughmination API — Discord presence, profiles, plural system and Genshin roster." />
+<meta name="twitter:description" content="Endpoint reference for the Doughmination API — Discord presence, profiles and Genshin roster." />
 <meta name="twitter:image" content="https://m.doughmination.gay/img/avatars/favicon.png" />
 <meta name="theme-color" content="#f5a9b8" />
 <style>
@@ -220,7 +220,7 @@ export const DOCS_HTML = `<!doctype html>
 <header>
   <div class="header-text">
     <h1>Doughmination API reference</h1>
-    <p>Universal API: live Discord presence, Discord profiles, Minecraft skins & capes, Genshin roster tracking, the plural system, and misc services. Base URL: <code>https://doughmination.uk/v2</code> · <a class="self" href="/openapi.json">OpenAPI spec</a> · <a class="self" href="/abuse">Abuse</a> · <a class="self" href="/terms">Terms</a> · <a class="self" href="/privacy">Privacy</a></p>
+    <p>Universal API: live Discord presence, Discord profiles, Minecraft skins & capes, Genshin roster tracking, and misc services. Base URL: <code>https://doughmination.uk/v2</code> · <a class="self" href="/openapi.json">OpenAPI spec</a> · <a class="self" href="/abuse">Abuse</a> · <a class="self" href="/terms">Terms</a> · <a class="self" href="/privacy">Privacy</a></p>
     <p class="disclaimer">Not affiliated with, endorsed by, or associated with Mojang/Microsoft.</p>
   </div>
   <button id="navToggle" class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav">

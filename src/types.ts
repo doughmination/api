@@ -5,16 +5,11 @@ export interface Env {
   PROFILE_CACHE: KVNamespace;
   ASSETS?: Fetcher;
   SYSTEM: DurableObjectNamespace;
+  /** The system site Worker; guestbook moderation checks admin tokens against it. */
+  SITE: Fetcher;
 
-  SYSTEM_TOKEN?: string;
-  CACHE_TTL?: string;
-  JWT_SECRET?: string;
   TURNSTILE_SECRET?: string;
   TURNSILE_SECRET?: string;
-  ADMIN_USERNAME?: string;
-  ADMIN_PASSWORD?: string;
-  ADMIN_DISPLAY_NAME?: string;
-  DOUGH_BOT_TOKEN?: string;
   BATTERY_API_KEYS?: string;
   GUESTBOOK_ADMIN_KEYS?: string;
   BASE_URL?: string;

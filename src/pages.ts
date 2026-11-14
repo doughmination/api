@@ -12,7 +12,7 @@ const FOOTER_LINKS = `<a href="/docs">API reference</a> · <a href="/abuse">Abus
 const AVATAR = "https://m.doughmination.gay/img/avatars/favicon.png";
 
 const DEFAULT_OG_DESCRIPTION =
-  "Universal API: live Discord presence, profiles, plural system and Genshin roster tracking.";
+  "Universal API: live Discord presence, profiles and Genshin roster tracking.";
 
 /**
  * Wraps page content in the shared document shell. `body` is trusted HTML.
@@ -100,10 +100,10 @@ ${body}
 
 export const LANDING_HTML = pageShell(
   "Doughmination API",
-  `Universal API — live Discord presence, profiles, plural system and Genshin roster. <a href="/docs">API reference →</a>`,
+  `Universal API — live Discord presence, profiles and Genshin roster. <a href="/docs">API reference →</a>`,
   `
 <div class="card">
-  <strong>Doughmination API</strong> — a universal API for live Discord presence, profiles, the plural system, and Genshin roster tracking.
+  <strong>Doughmination API</strong> — a universal API for live Discord presence, profiles, and Genshin roster tracking.
 </div>
 
 <h2>Start here</h2>
@@ -133,7 +133,7 @@ export const TERMS_HTML = pageShell(
   <li>The public endpoints are free for personal and non-commercial projects. No API key, no signup.</li>
   <li><strong>Be reasonable with requests.</strong> Use the batch endpoints (100 users per call), respect the cache TTLs instead of polling with <code>?fresh</code>, and use the WebSocket (<code>/v2/ws</code>) for live data instead of tight polling loops. Unreasonable traffic — floods, scraping loops, cache-bust spam — gets the source IP blocked at the edge, usually without warning.</li>
   <li>Don't use this API to harass, stalk, or surveil anyone. That's an immediate permanent block and, where relevant, a report to the platform involved.</li>
-  <li>Authenticated endpoints (the plural-system API, devices, admin routes) are for authorised users only. Don't probe them.</li>
+  <li>Authenticated endpoints (devices, admin routes) are for authorised users only. Don't probe them.</li>
 </ul>
 
 <h2>No guarantees</h2>
@@ -165,7 +165,7 @@ export const PRIVACY_HTML = pageShell(
   <li><strong>Guestbook entries.</strong> Name, message, and optional website are public by design. The submitting IP is used transiently for rate limiting (one post per 60 seconds) and spam protection (Cloudflare Turnstile).</li>
   <li><strong>Discord presence & profiles.</strong> The API tracks live presence only for users who share a Discord server with its bot. Presence is held in memory only and never written to storage. Profile data (avatar, badges, connections) is fetched live from Discord on each request and not stored.</li>
   <li><strong>Minecraft data.</strong> Public data fetched from Mojang on request, cached for about 5 minutes. The vanilla-cape catalogue keeps cape textures (not player identities) permanently.</li>
-  <li><strong>Accounts & devices.</strong> Plural-system accounts (username, password hash, display name) and device/battery reports are stored for the people who use them — these are private to the system's own users.</li>
+  <li><strong>Devices.</strong> Device/battery reports are stored for the people who use them — these are private to their owners.</li>
 </ul>
 
 <h2>What's NOT collected</h2>

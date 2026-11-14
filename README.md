@@ -1,6 +1,6 @@
 # Doughmination API
 
-A combined Discord **presence** (Lanyard-style) and **profile/badges** (dstn.to-style) API on a **single Cloudflare Worker + Durable Objects**, powered by **one Discord bot**. It also carries the Doughmination plural-system API (fronting, members, mental state, devices, guestbook), Minecraft lookups, and merged git contribution heatmaps. Everything returns one unified JSON envelope, and all live updates go over a single WebSocket.
+A combined Discord **presence** (Lanyard-style) and **profile/badges** (dstn.to-style) API on a **single Cloudflare Worker + Durable Objects**, powered by **one Discord bot**. It also carries devices, a guestbook, visit counters, Minecraft lookups, and merged git contribution heatmaps. Everything returns one unified JSON envelope, and all live updates go over a single WebSocket.
 
 - **Live:** https://doughmination.uk · **Docs:** [`/docs`](https://doughmination.uk/docs) · **Abuse & contact:** [`/abuse`](https://doughmination.uk/abuse)
 - **Stack:** Cloudflare Workers, Durable Objects, KV, Hono, Zod, TypeScript, Bun

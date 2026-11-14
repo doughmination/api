@@ -157,7 +157,7 @@ function buildSpec(): JsonObj {
       title: "Doughmination API",
       version: "2.0.0",
       description:
-        "Combined Discord presence + profile/badges API, Minecraft lookups, git contribution heatmaps, and the Doughmination plural-system API — one Cloudflare Worker.\n\n" +
+        "Combined Discord presence + profile/badges API, Minecraft lookups, git contribution heatmaps, devices, guestbook and counters — one Cloudflare Worker.\n\n" +
         "All JSON responses share one envelope: `{ success, data }` or `{ success: false, error: { code, message } }`.\n\n" +
         "**Realtime:** live updates (presence, fronting, mental state, devices) are pushed over a single WebSocket at `wss://doughmination.uk/v2/ws` — see /docs for the frame protocol. WebSocket endpoints are not listed as paths below.\n\n" +
         "**Terms:** be reasonable with request volume or your IP gets blocked — https://doughmination.uk/terms",
@@ -173,7 +173,7 @@ function buildSpec(): JsonObj {
           type: "http",
           scheme: "bearer",
           description:
-            "JWT from POST /v2/plural/login (24h expiry) for user endpoints; the operator-set bot token (plus a 'User-Agent: CloveShortcuts/<version>' header) for /v2/plural/bot/* endpoints. Some routes additionally require an admin, owner, or pet role.",
+            "A signed-in admin's token from the system site (doughmination.co.uk), for guestbook moderation.",
         },
         batteryKey: {
           type: "apiKey",

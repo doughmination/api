@@ -5,12 +5,6 @@
  */
 
 import type { Hono } from "hono";
-import type { User } from "./models";
 
-/** Variables carried on the Hono context (set by auth middleware). */
-export type Variables = {
-  user?: User;
-};
-
-export type Env = { Variables: Variables };
+export type Env = Record<string, never>;
 export type App = Hono<Env>;
