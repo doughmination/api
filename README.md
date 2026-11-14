@@ -4,7 +4,7 @@ A combined Discord **presence** (Lanyard-style) and **profile/badges** (dstn.to-
 
 - **Live:** https://doughmination.uk · **Docs:** [`/docs`](https://doughmination.uk/docs) · **Abuse & contact:** [`/abuse`](https://doughmination.uk/abuse)
 - **Stack:** Cloudflare Workers, Durable Objects, KV, Hono, Zod, TypeScript, Bun
-- **Licence:** ESAL-2.1 — see [LICENCE.md](LICENCE.md)
+- **Licence:** DASL-1.2 — see [LICENCE.md](LICENCE.md)
 
 ## Thanks
 
