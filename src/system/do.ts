@@ -53,6 +53,9 @@ class DoStore implements Store {
 const WS_PATH = "/v2/ws";
 /** Internal DO-to-DO path GatewayManager relays presence updates to. */
 const PRESENCE_RELAY_PATH = "/internal/presence";
+/** Internal paths the Hub entrypoint (index.ts) calls for the system site. */
+export const BROADCAST_PATH = "/internal/broadcast";
+export const EXPORT_PATH = "/internal/export";
 
 /** Per-socket presence subscription, persisted on the hibernatable socket via
  *  serializeAttachment so it survives eviction. Presence events are filtered
@@ -100,6 +103,18 @@ export class SystemState implements DurableObject {
       const presence = (await req.json().catch(() => null)) as UnifiedPresence | null;
       if (presence?.user_id) this.broadcastPresence(presence);
       return new Response(null, { status: 204 });
+    }
+
+    // Fronting / mental-state events from the system site, via the Hub entrypoint
+    if (url.pathname === BROADCAST_PATH && req.method === "POST") {
+      this.broadcast(await req.json());
+      return new Response(null, { status: 204 });
+    }
+
+    // Every stored key, for the system site's one-time import
+    if (url.pathname === EXPORT_PATH && req.method === "GET") {
+      const entries = await this.state.storage.list();
+      return Response.json(Object.fromEntries(entries));
     }
 
     return systemApp.fetch(req, {} as never);

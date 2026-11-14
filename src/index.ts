@@ -53,9 +53,31 @@ import { DOCS_HTML } from "./docs";
 import { ABUSE_HTML, ABUSE_CONTACT, securityTxt } from "./abuse";
 import { LANDING_HTML, TERMS_HTML, PRIVACY_HTML, NOT_FOUND_HTML } from "./pages";
 import { OPENAPI_JSON } from "./openapi";
-import { SystemState } from "./system/do";
+import { SystemState, BROADCAST_PATH, EXPORT_PATH } from "./system/do";
+import { WorkerEntrypoint } from "cloudflare:workers";
 
 export { GatewayManager, SystemState };
+
+/**
+ * RPC entrypoint for the system site (doughmination.co.uk), bound there as
+ * HUB with entrypoint "Hub". Service-binding only: it has no public route.
+ */
+export class Hub extends WorkerEntrypoint<Env> {
+  /** Fan a { type, data } event out to every /v2/ws client. */
+  async broadcast(data: unknown): Promise<void> {
+    await systemStub(this.env).fetch(`https://do${BROADCAST_PATH}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** The old SystemState store, every key, for the site's one-time import. */
+  async exportLegacy(): Promise<Record<string, unknown>> {
+    const res = await systemStub(this.env).fetch(`https://do${EXPORT_PATH}`);
+    if (!res.ok) throw new Error(`Legacy export failed: ${res.status}`);
+    return (await res.json()) as Record<string, unknown>;
+  }
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
