@@ -159,7 +159,7 @@ function buildSpec(): JsonObj {
       description:
         "Combined Discord presence + profile/badges API, Minecraft lookups, git contribution heatmaps, devices, guestbook and counters — one Cloudflare Worker.\n\n" +
         "All JSON responses share one envelope: `{ success, data }` or `{ success: false, error: { code, message } }`.\n\n" +
-        "**Realtime:** live updates (presence, fronting, mental state, devices) are pushed over a single WebSocket at `wss://doughmination.uk/v2/ws` — see /docs for the frame protocol. WebSocket endpoints are not listed as paths below.\n\n" +
+        "**Realtime:** presence and device updates are pushed over a WebSocket at `wss://doughmination.uk/v2/ws` — see /docs for the frame protocol. Fronting and mental state are on the system site's socket, `wss://doughmination.co.uk/api/plural/ws`. WebSocket endpoints are not listed as paths below.\n\n" +
         "**Terms:** be reasonable with request volume or your IP gets blocked — https://doughmination.uk/terms",
       contact: { email: ABUSE_CONTACT, url: `${BASE}/abuse` },
       termsOfService: `${BASE}/terms`,

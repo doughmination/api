@@ -85,7 +85,7 @@ export const GROUPS: GroupDef[] = [
     id: "realtime", name: "Realtime", blurb: "One WebSocket for every live update.",
     endpoints: [
       { m: "WS", path: "/ws", auth: "public",
-        desc: "The single realtime socket for ALL live updates. On connect you get a connection_established message. Fronting (fronters_update), mental state (mental_state_update), device/battery (device_update) and force_refresh events are pushed to every client automatically. For live Discord presence, send a subscribe frame — either { \"type\": \"subscribe\", \"all\": true } or { \"type\": \"subscribe\", \"ids\": [\"<user id>\", …] }; you'll get an init_state snapshot immediately and presence_update events thereafter (only for the users you subscribed to). Every message is a { type, data } object. Send 'ping' to get 'pong'." },
+        desc: "The realtime socket for presence and devices. On connect you get a connection_established message. Device/battery (device_update) events are pushed to every client automatically. Fronting and mental state are on the system site's socket, wss://doughmination.co.uk/api/plural/ws. For live Discord presence, send a subscribe frame — either { \"type\": \"subscribe\", \"all\": true } or { \"type\": \"subscribe\", \"ids\": [\"<user id>\", …] }; you'll get an init_state snapshot immediately and presence_update events thereafter (only for the users you subscribed to). Every message is a { type, data } object. Send 'ping' to get 'pong'." },
     ],
   },
   {

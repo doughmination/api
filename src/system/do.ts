@@ -12,9 +12,9 @@
  *  - Owns the visit-counter SQLite tables (DO embedded SQLite).
  *  - Is the SINGLE realtime WebSocket hub for the whole API, at /v2/ws,
  *    using the hibernatable WebSocket API so idle sockets don't keep the DO
- *    billed/awake. Every live update — presence, fronting, mental state,
- *    device/battery, force-refresh — is delivered over this one socket as a
- *    { type, data } envelope.
+ *    billed/awake. Presence and device/battery updates are delivered over
+ *    this socket as a { type, data } envelope. Fronting and mental state moved
+ *    to the system site's own socket (doughmination.co.uk/api/plural/ws).
  *  - Delegates all HTTP to the Hono `systemApp`.
  *
  * Presence lives in the GatewayManager DO (which owns the Discord gateway
@@ -53,8 +53,6 @@ class DoStore implements Store {
 const WS_PATH = "/v2/ws";
 /** Internal DO-to-DO path GatewayManager relays presence updates to. */
 const PRESENCE_RELAY_PATH = "/internal/presence";
-/** Internal path the Hub entrypoint (index.ts) calls for the system site. */
-export const BROADCAST_PATH = "/internal/broadcast";
 
 /** Per-socket presence subscription, persisted on the hibernatable socket via
  *  serializeAttachment so it survives eviction. Presence events are filtered
@@ -104,12 +102,6 @@ export class SystemState implements DurableObject {
       return new Response(null, { status: 204 });
     }
 
-    // Fronting / mental-state events from the system site, via the Hub entrypoint
-    if (url.pathname === BROADCAST_PATH && req.method === "POST") {
-      this.broadcast(await req.json());
-      return new Response(null, { status: 204 });
-    }
-
     return systemApp.fetch(req, {} as never);
   }
 
@@ -120,7 +112,7 @@ export class SystemState implements DurableObject {
     // Hibernatable accept — the DO can be evicted while sockets stay open.
     this.state.acceptWebSocket(server);
     // Start with no presence subscription; the client opts in by sending a
-    // { type: "subscribe" } message. Fronting / mental-state / device events
+    // { type: "subscribe" } message. Device events
     // are still delivered without any subscription.
     server.serializeAttachment(EMPTY_SUB);
 
@@ -226,7 +218,7 @@ export class SystemState implements DurableObject {
   // ---- fan-out ------------------------------------------------------------
 
   /** Fan a { type, data } payload out to EVERY connected client. Used for
-   *  fronting / mental-state / device / force_refresh events. */
+   *  device events. */
   private broadcast(data: unknown): void {
     const message = JSON.stringify(data);
     for (const ws of this.state.getWebSockets()) {

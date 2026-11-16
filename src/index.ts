@@ -2,8 +2,9 @@
  * index.ts — Worker entry: v2 router + cron keepalive.
  *
  * Namespaces
- *   /v2/ws            — the single realtime socket for ALL live updates
- *                       (presence, fronting, mental state, devices)  (SystemState DO)
+ *   /v2/ws            — the realtime socket for presence and devices (SystemState DO).
+ *                       Fronting and mental state live on the system site's own
+ *                       socket, wss://doughmination.co.uk/api/plural/ws
  *   /v2/discord/*     — Discord users (profile + badges + presence + equipped
  *                       collectibles, one merged record), guilds, girls, status
  *                       (the old /v2/lanyard/* presence routes now live here)
@@ -52,24 +53,9 @@ import { DOCS_HTML } from "./docs";
 import { ABUSE_HTML, ABUSE_CONTACT, securityTxt } from "./abuse";
 import { LANDING_HTML, TERMS_HTML, PRIVACY_HTML, NOT_FOUND_HTML } from "./pages";
 import { OPENAPI_JSON } from "./openapi";
-import { SystemState, BROADCAST_PATH } from "./system/do";
-import { WorkerEntrypoint } from "cloudflare:workers";
+import { SystemState } from "./system/do";
 
 export { GatewayManager, SystemState };
-
-/**
- * RPC entrypoint for the system site (doughmination.co.uk), bound there as
- * HUB with entrypoint "Hub". Service-binding only: it has no public route.
- */
-export class Hub extends WorkerEntrypoint<Env> {
-  /** Fan a { type, data } event out to every /v2/ws client. */
-  async broadcast(data: unknown): Promise<void> {
-    await systemStub(this.env).fetch(`https://do${BROADCAST_PATH}`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",

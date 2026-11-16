@@ -15,19 +15,7 @@
 
 import { rt } from "./runtime";
 
-export function broadcastFrontingUpdate(frontersData: unknown): void {
-  rt().broadcast({ type: "fronters_update", data: frontersData });
-}
-
-export function broadcastMentalStateUpdate(stateData: unknown): void {
-  rt().broadcast({ type: "mental_state_update", data: stateData });
-}
-
 /** A device/battery state change ({ device, level, charging, ... }). */
 export function broadcastDeviceUpdate(deviceData: unknown): void {
   rt().broadcast({ type: "device_update", data: deviceData });
-}
-
-export function broadcastFrontendUpdate(updateType: string, data: unknown): void {
-  rt().broadcast({ type: updateType, data });
 }
